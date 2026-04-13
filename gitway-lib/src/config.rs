@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Rust guideline compliant 2026-03-30
-//! Configuration builder for a Gitssh session.
+//! Configuration builder for a Gitway session.
 //!
 //! # Examples
 //!

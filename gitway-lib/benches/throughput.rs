@@ -67,7 +67,7 @@ fn bench_gitway_exec(c: &mut Criterion) {
 /// Benchmark: equivalent OpenSSH invocation for comparison.
 ///
 /// Runs `ssh -T git@github.com` and measures wall-clock time. This is the
-/// S1 baseline; Gitssh must be within 5 % of this value.
+/// S1 baseline; Gitway must be within 5 % of this value.
 fn bench_openssh_exec(c: &mut Criterion) {
     if !integration_enabled() {
         return;

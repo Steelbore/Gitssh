@@ -4,7 +4,7 @@ name        = "gitway"
 description = "Purpose-built SSH transport client for Git hosting services (GitHub, GitLab, Codeberg)."
 keywords    = ["ssh", "git", "github", "gitlab", "cli"]
 categories  = ["command-line-utilities", "network-programming"]
-documentation = "https://github.com/steelbore/gitssh#readme"
+documentation = "https://github.com/steelbore/gitway#readme"
 
 version.workspace      = true
 edition.workspace      = true

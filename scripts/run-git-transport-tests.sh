@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Run Git's transport test suite with gitssh as the SSH transport (NFR-8, S4).
+# Run Git's transport test suite with gitway as the SSH transport (NFR-8, S4).
 #
 # Prerequisites:
 #   - gitway binary in PATH (or GITWAY_BIN set to full path)

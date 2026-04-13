@@ -23,7 +23,7 @@ fn integration_enabled() -> bool {
 
 // ── Connectivity tests ────────────────────────────────────────────────────────
 
-/// Verifies that gitssh can establish a TCP connection and pass host-key
+/// Verifies that gitway can establish a TCP connection and pass host-key
 /// verification against the live github.com server.
 ///
 /// Does **not** authenticate; this only exercises the TLS/KEX handshake.

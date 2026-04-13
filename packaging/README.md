@@ -33,7 +33,7 @@ To build locally:
 ```sh
 cargo install cargo-generate-rpm
 cargo build --release -p gitway
-cargo generate-rpm -p gitssh-cli
+cargo generate-rpm -p gitway-cli
 ```
 
 ## NixOS / Nix
@@ -41,13 +41,13 @@ cargo generate-rpm -p gitssh-cli
 Install from the flake at the repo root:
 ```sh
 # Run without installing
-nix run github:steelbore/gitssh
+nix run github:steelbore/gitway
 
 # Install into your profile
-nix profile install github:steelbore/gitssh
+nix profile install github:steelbore/gitway
 
 # Use in a NixOS module or home-manager
-inputs.gitssh.url = "github:steelbore/gitssh";
+inputs.gitway.url = "github:steelbore/gitway";
 ```
 
 ## crates.io

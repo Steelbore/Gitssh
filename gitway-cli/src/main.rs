@@ -2,7 +2,7 @@
 // Rust guideline compliant 2026-03-30
 // S3: enforce zero unsafe in all project-owned code at compile time.
 #![forbid(unsafe_code)]
-//! Gitssh CLI entry point.
+//! Gitway CLI entry point.
 //!
 //! Parses arguments, resolves the identity key (prompting for passphrases if
 //! needed), connects to the target host, and either runs `--test` / `--install`
@@ -26,7 +26,7 @@ use gitway_lib::auth::{IdentityResolution, find_identity};
 use gitway_lib::auth::connect_agent;
 use gitway_lib::{GitwayConfig, GitwayError, GitwaySession};
 
-use cli::{Cli, GitsshSubcommand, OutputFormat};
+use cli::{Cli, GitwaySubcommand, OutputFormat};
 
 // ── Output mode ───────────────────────────────────────────────────────────────
 
@@ -194,8 +194,8 @@ async fn run(cli: Cli) -> Result<u32, GitwayError> {
     // Handle schema / describe subcommands first — they need no connection.
     if let Some(ref subcommand) = cli.subcommand {
         return match subcommand {
-            GitsshSubcommand::Schema => Ok(run_schema()),
-            GitsshSubcommand::Describe => Ok(run_describe()),
+            GitwaySubcommand::Schema => Ok(run_schema()),
+            GitwaySubcommand::Describe => Ok(run_describe()),
         };
     }
 
@@ -394,11 +394,11 @@ fn run_install(mode: OutputMode) -> Result<u32, GitwayError> {
 
 // ── schema subcommand ─────────────────────────────────────────────────────────
 
-/// Emits a JSON Schema (Draft 2020-12) describing all Gitssh commands (SFRS Rule 4).
+/// Emits a JSON Schema (Draft 2020-12) describing all Gitway commands (SFRS Rule 4).
 fn run_schema() -> u32 {
     let schema = serde_json::json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://github.com/steelbore/gitssh/schema/v1",
+        "$id": "https://github.com/steelbore/gitway/schema/v1",
         "title": "gitway",
         "description": "Purpose-built SSH transport client for Git hosting services",
         "version": env!("CARGO_PKG_VERSION"),

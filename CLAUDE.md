@@ -8,7 +8,7 @@ GitLab, Codeberg, and self-hosted instances).  It replaces the general-purpose
 
 ```
 gitway-lib/   Core SSH transport library (pub API, no CLI concerns)
-gitssh-cli/   Binary crate — argument parsing, passphrase prompting, output formatting
+gitway-cli/   Binary crate — argument parsing, passphrase prompting, output formatting
 packaging/    AUR PKGBUILDs, packaging notes
 docs/         PRD, Plan, PDF collateral
 .github/      CI and release workflows

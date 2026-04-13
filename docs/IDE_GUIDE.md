@@ -204,7 +204,7 @@ source "$HOME/.cargo/env"
 # Build and install gitway
 cargo install gitway   # once published on crates.io
 # — or from source —
-git clone https://github.com/steelbore/gitssh && cargo install --path gitssh/gitway-cli
+git clone https://github.com/steelbore/gitway && cargo install --path gitway/gitway-cli
 ```
 
 Then register it:
@@ -224,8 +224,8 @@ Add to your `.idx/dev.nix` (IDX's environment configuration):
   ];
 
   idx.workspace.onCreate = {
-    install-gitssh = "cargo install gitway";
-    configure-gitssh = "gitway --install";
+    install-gitway = "cargo install gitway";
+    configure-gitway = "gitway --install";
   };
 }
 ```
@@ -289,19 +289,19 @@ NixOS requires the `shell.nix` environment due to incompatible default RUSTFLAGS
 
 **Nushell:**
 ```nu
-cd /path/to/gitssh
+cd /path/to/gitway
 nix-shell --run 'cargo install --path gitway-cli'
 ```
 
 **Ion:**
 ```ion
-cd /path/to/gitssh
+cd /path/to/gitway
 nix-shell --run 'cargo install --path gitway-cli'
 ```
 
 **Bash/Brush:**
 ```bash
-cd /path/to/gitssh
+cd /path/to/gitway
 nix-shell --run 'cargo install --path gitway-cli'
 ```
 
@@ -316,7 +316,7 @@ nix-shell --run 'cargo build --release'
 
 # 2. Copy binary to PATH location
 mkdir ~/.local/bin
-cp target/release/gitssh ~/.local/bin/
+cp target/release/gitway ~/.local/bin/
 
 # 3. Ensure ~/.local/bin is in PATH (add to ~/.config/nushell/env.nu)
 $env.PATH = ($env.PATH | split row (char esep) | prepend ($env.HOME | path join .local bin))
@@ -332,7 +332,7 @@ nix-shell --run 'cargo build --release'
 
 # 2. Copy binary to PATH location
 mkdir -p ~/.local/bin
-cp target/release/gitssh ~/.local/bin/
+cp target/release/gitway ~/.local/bin/
 
 # 3. Ensure ~/.local/bin is in PATH (add to ~/.config/ion/initrc)
 export PATH="$HOME/.local/bin:$PATH"
@@ -348,7 +348,7 @@ nix-shell --run 'cargo build --release'
 
 # 2. Copy binary to PATH location
 mkdir -p ~/.local/bin
-cp target/release/gitssh ~/.local/bin/
+cp target/release/gitway ~/.local/bin/
 
 # 3. Ensure ~/.local/bin is in PATH (add to ~/.bashrc or ~/.profile)
 export PATH="$HOME/.local/bin:$PATH"
@@ -386,9 +386,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use gitssh_lib::{GitwayConfig, GitwaySession};
+use gitway_lib::{GitwayConfig, GitwaySession};
 
-pub async fn fetch_pack(host: &str, repo: &str) -> Result<u32, gitssh_lib::GitwayError> {
+pub async fn fetch_pack(host: &str, repo: &str) -> Result<u32, gitway_lib::GitwayError> {
     let config = GitwayConfig::builder(host).build();
     let mut session = GitwaySession::connect(&config).await?;
     session.authenticate_best(&config).await?;
@@ -404,7 +404,7 @@ See [gitway-lib on docs.rs](https://docs.rs/gitway-lib) for the full API referen
 
 ## 10. Troubleshooting
 
-### `gitssh: command not found`
+### `gitway: command not found`
 
 Gitway is not on your PATH. Ensure `~/.cargo/bin` is in `$PATH`:
 
@@ -461,7 +461,7 @@ Gitway always tries the agent first before asking for a passphrase.
 ssh-add ~/.ssh/id_ed25519
 ```
 
-**Option 2 — SSH_ASKPASS:** Point gitssh at a GUI passphrase dialog program.
+**Option 2 — SSH_ASKPASS:** Point gitway at a GUI passphrase dialog program.
 Set these variables in your shell profile so they are inherited by GUI apps:
 
 *Nushell (`~/.config/nushell/env.nu`):*
@@ -493,10 +493,10 @@ Common askpass programs by desktop environment:
 | NixOS (KDE) | `pkgs.ksshaskpass` | — |
 | NixOS (X11) | `pkgs.x11_ssh_askpass` | — |
 
-`SSH_ASKPASS_REQUIRE=prefer` tells gitssh to always use the GUI dialog when
+`SSH_ASKPASS_REQUIRE=prefer` tells gitway to always use the GUI dialog when
 `SSH_ASKPASS` is set (even if a terminal is present). Use `force` to override
 terminal prompting entirely.
 
 **Option 3 — run from the integrated terminal:** Open the IDE's built-in
 terminal and perform the Git operation from there. The terminal is a real
-TTY, so gitssh can prompt normally.
+TTY, so gitway can prompt normally.

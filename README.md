@@ -3,7 +3,7 @@
 Purpose-built SSH transport client for Git operations against GitHub and GitHub
 Enterprise Server (GHE).
 
-[![CI](https://github.com/steelbore/gitssh/actions/workflows/ci.yml/badge.svg)](https://github.com/steelbore/gitssh/actions/workflows/ci.yml)
+[![CI](https://github.com/steelbore/gitway/actions/workflows/ci.yml/badge.svg)](https://github.com/steelbore/gitway/actions/workflows/ci.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![MSRV: 1.85](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](rust-toolchain.toml)
 
@@ -38,7 +38,7 @@ order, and behaves identically on Linux, macOS, and Windows.
   zeroized on drop.
 - **OpenSSH certificates** — pass a certificate alongside your key with `--cert`.
 - **GitHub Enterprise Server** — add GHE fingerprints to
-  `~/.config/gitssh/known_hosts`.
+  `~/.config/gitway/known_hosts`.
 - **Drop-in replacement** — works with `GIT_SSH_COMMAND` and `core.sshCommand`
   exactly as `ssh` does.
 - **Library crate** — embed `gitway-lib` directly in Rust projects for
@@ -53,17 +53,17 @@ order, and behaves identically on Linux, macOS, and Windows.
 
 **Nushell:**
 ```nu
-cargo install --path gitssh-cli
+cargo install --path gitway-cli
 ```
 
 **Ion:**
 ```ion
-cargo install --path gitssh-cli
+cargo install --path gitway-cli
 ```
 
 **Bash/Brush:**
 ```bash
-cargo install --path gitssh-cli
+cargo install --path gitway-cli
 ```
 
 ### Register as the global Git SSH command
@@ -82,7 +82,7 @@ automatically.
 ## CLI usage
 
 ```
-gitssh [OPTIONS] <host> <command...>
+gitway [OPTIONS] <host> <command...>
 ```
 
 ### Options
@@ -123,26 +123,26 @@ gitway --port 22 ghe.corp.example.com git-upload-pack 'org/repo.git'
 
 *Nushell:*
 ```nu
-$env.GIT_SSH_COMMAND = "gitssh"
+$env.GIT_SSH_COMMAND = "gitway"
 git clone git@github.com:org/repo.git
 ```
 
 *Ion:*
 ```ion
-export GIT_SSH_COMMAND=gitssh
+export GIT_SSH_COMMAND=gitway
 git clone git@github.com:org/repo.git
 ```
 
 *Bash/Brush:*
 ```bash
-GIT_SSH_COMMAND=gitssh git clone git@github.com:org/repo.git
+GIT_SSH_COMMAND=gitway git clone git@github.com:org/repo.git
 ```
 
 ---
 
 ## GitHub Enterprise Server
 
-Add GHE host-key fingerprints to `~/.config/gitssh/known_hosts`. One entry per
+Add GHE host-key fingerprints to `~/.config/gitway/known_hosts`. One entry per
 line, in the same format as OpenSSH `known_hosts`:
 
 ```
@@ -177,16 +177,16 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-gitway-lib = { git = "https://github.com/steelbore/gitssh" }
+gitway-lib = { git = "https://github.com/steelbore/gitway" }
 ```
 
 ### Connect and run a Git command
 
 ```rust
-use gitssh_lib::{GitwayConfig, GitwaySession};
+use gitway_lib::{GitwayConfig, GitwaySession};
 
 #[tokio::main]
-async fn main() -> Result<(), gitssh_lib::GitwayError> {
+async fn main() -> Result<(), gitway_lib::GitwayError> {
     let config = GitwayConfig::github();
     let mut session = GitwaySession::connect(&config).await?;
     session.authenticate_best(&config).await?;
@@ -201,7 +201,7 @@ async fn main() -> Result<(), gitssh_lib::GitwayError> {
 ### Target a GitHub Enterprise Server instance
 
 ```rust
-use gitssh_lib::GitwayConfig;
+use gitway_lib::GitwayConfig;
 use std::path::PathBuf;
 
 let config = GitwayConfig::builder("ghe.corp.example.com")
@@ -213,7 +213,7 @@ let config = GitwayConfig::builder("ghe.corp.example.com")
 ### Handle errors by category
 
 ```rust
-use gitssh_lib::GitwayError;
+use gitway_lib::GitwayError;
 
 fn handle(err: &GitwayError) {
     if err.is_host_key_mismatch() {
@@ -236,7 +236,7 @@ fn handle(err: &GitwayError) {
 | `.cert_file(path)` | none | OpenSSH certificate path |
 | `.skip_host_check(bool)` | `false` | Bypass fingerprint pinning |
 | `.inactivity_timeout(Duration)` | `60 s` | Session idle timeout |
-| `.custom_known_hosts(path)` | `~/.config/gitssh/known_hosts` | GHE fingerprint file |
+| `.custom_known_hosts(path)` | `~/.config/gitway/known_hosts` | GHE fingerprint file |
 | `.fallback(Option<(String, u16)>)` | `ssh.github.com:443` | Port-22 fallback |
 
 ---
@@ -272,21 +272,21 @@ allocation is released. Private key material in memory is managed by `russh`'s
 ### Standard Linux, macOS, or WSL
 
 ```sh
-git clone https://github.com/steelbore/gitssh
+git clone https://github.com/steelbore/gitway
 cd gitway
 
 # Requires a C compiler (gcc) for the aws-lc-rs cryptography crate.
 cargo build --release
 ```
 
-The release binary is at `target/release/gitssh`.
+The release binary is at `target/release/gitway`.
 
 ### Shell-specific instructions
 
 #### Nushell
 
 ```nu
-git clone https://github.com/steelbore/gitssh
+git clone https://github.com/steelbore/gitway
 cd gitway
 cargo build --release
 ```
@@ -294,7 +294,7 @@ cargo build --release
 #### Ion
 
 ```ion
-git clone https://github.com/steelbore/gitssh
+git clone https://github.com/steelbore/gitway
 cd gitway
 cargo build --release
 ```
@@ -302,7 +302,7 @@ cargo build --release
 #### Bash / Brush
 
 ```bash
-git clone https://github.com/steelbore/gitssh
+git clone https://github.com/steelbore/gitway
 cd gitway
 cargo build --release
 ```

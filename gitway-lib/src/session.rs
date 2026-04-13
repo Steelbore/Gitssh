@@ -4,9 +4,9 @@
 //! SSH session management (FR-1 through FR-5, FR-9 through FR-17).
 //!
 //! [`GitwaySession`] wraps a russh [`client::Handle`] and exposes the
-//! operations Gitssh needs: connect, authenticate, exec, and close.
+//! operations Gitway needs: connect, authenticate, exec, and close.
 //!
-//! Host-key verification is performed inside [`GitsshHandler::check_server_key`]
+//! Host-key verification is performed inside [`GitwayHandler::check_server_key`]
 //! using the fingerprints collected by [`crate::hostkey`].
 
 use std::borrow::Cow;
@@ -29,7 +29,7 @@ use crate::relay;
 ///
 /// Validates the server host key (FR-6, FR-7, FR-8) and captures any
 /// authentication banner the server sends before confirming the session.
-struct GitsshHandler {
+struct GitwayHandler {
     /// Expected SHA-256 fingerprints for the target host.
     fingerprints: Vec<String>,
     /// When `true`, host-key verification is skipped (FR-8).
@@ -45,9 +45,9 @@ struct GitsshHandler {
     verified_fingerprint: Arc<Mutex<Option<String>>>,
 }
 
-impl fmt::Debug for GitsshHandler {
+impl fmt::Debug for GitwayHandler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GitsshHandler")
+        f.debug_struct("GitwayHandler")
             .field("fingerprints", &self.fingerprints)
             .field("skip_check", &self.skip_check)
             .field("auth_banner", &self.auth_banner)
@@ -56,7 +56,7 @@ impl fmt::Debug for GitsshHandler {
     }
 }
 
-impl client::Handler for GitsshHandler {
+impl client::Handler for GitwayHandler {
     type Error = GitwayError;
 
     async fn check_server_key(
@@ -116,7 +116,7 @@ impl client::Handler for GitsshHandler {
 /// # }
 /// ```
 pub struct GitwaySession {
-    handle: client::Handle<GitsshHandler>,
+    handle: client::Handle<GitwayHandler>,
     /// Authentication banner received from the server, if any.
     auth_banner: Arc<Mutex<Option<String>>>,
     /// SHA-256 fingerprint of the server key that passed verification, if any.
@@ -150,7 +150,7 @@ impl GitwaySession {
         let auth_banner = Arc::new(Mutex::new(None));
         let verified_fingerprint = Arc::new(Mutex::new(None));
 
-        let handler = GitsshHandler {
+        let handler = GitwayHandler {
             fingerprints,
             skip_check: config.skip_host_check,
             auth_banner: Arc::clone(&auth_banner),
@@ -513,7 +513,7 @@ impl GitwaySession {
 
 // ── russh config builder ──────────────────────────────────────────────────────
 
-/// Constructs a russh [`client::Config`] with Gitssh's preferred algorithms.
+/// Constructs a russh [`client::Config`] with Gitway's preferred algorithms.
 ///
 /// Algorithm preferences (FR-2, FR-3, FR-4):
 /// - Key exchange: `curve25519-sha256` (RFC 8731) with

@@ -3,8 +3,8 @@
 fuzz/target/
 
 # Cargo lock is committed for binaries, not libraries.
-# gitssh-lib is a library so its lock file should not be committed if published
-# separately, but since this workspace also contains a binary (gitssh-cli) we
+# gitway-lib is a library so its lock file should not be committed if published
+# separately, but since this workspace also contains a binary (gitway-cli) we
 # keep Cargo.lock checked in.
 
 # Editor and IDE artifacts

@@ -9,8 +9,8 @@ version    = "0.3.0"
 edition    = "2021"
 license    = "GPL-3.0-or-later"
 authors    = ["Mohamed Hammad <MJ@S3cure.me>"]
-repository = "https://github.com/steelbore/gitssh"
-homepage   = "https://github.com/steelbore/gitssh"
+repository = "https://github.com/steelbore/gitway"
+homepage   = "https://github.com/steelbore/gitway"
 rust-version = "1.85"
 
 # ── Shared dependencies ───────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ module_name_repetitions              = "allow"
 # russh pulls in crypto crates at different versions; mismatch is unavoidable.
 multiple_crate_versions   = "allow"
 
-# GitsshError carries a std::backtrace::Backtrace (heap-allocated).  Boxing
+# GitwayError carries a std::backtrace::Backtrace (heap-allocated).  Boxing
 # it in every return type would harm ergonomics for no meaningful benefit on
 # the non-hot authentication path.
 result_large_err          = "allow"

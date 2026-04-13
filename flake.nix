@@ -8,7 +8,7 @@
 #   nix build .#gitway                # explicit package name
 #
 # Install into your NixOS system or home-manager profile:
-#   nix profile install github:steelbore/gitssh
+#   nix profile install github:steelbore/gitway
 {
   description = "Purpose-built SSH transport client for Git hosting services (GitHub, GitLab, Codeberg)";
 
@@ -54,7 +54,7 @@
 
           meta = {
             description = "Purpose-built SSH transport client for Git hosting services";
-            homepage    = "https://github.com/steelbore/gitssh";
+            homepage    = "https://github.com/steelbore/gitway";
             license     = pkgs.lib.licenses.gpl3Plus;
             maintainers = [ ];
             mainProgram = "gitway";

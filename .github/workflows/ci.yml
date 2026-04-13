@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# CI matrix — build, lint, and test Gitssh on stable + MSRV Rust.
+# CI matrix — build, lint, and test Gitway on stable + MSRV Rust.
 #
 # Jobs:
 #   check   — cargo check (fast fail on type errors), Linux only

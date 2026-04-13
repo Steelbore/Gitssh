@@ -3,11 +3,11 @@
 Core SSH transport library for Git operations against GitHub and GitHub Enterprise
 Server (GHE). Written in pure Rust on top of [russh](https://docs.rs/russh) v0.59.
 
-Part of the [Gitway](https://github.com/steelbore/gitssh) project.
+Part of the [Gitway](https://github.com/steelbore/gitway) project.
 
 [![Crates.io](https://img.shields.io/crates/v/gitway-lib.svg)](https://crates.io/crates/gitway-lib)
 [![docs.rs](https://docs.rs/gitway-lib/badge.svg)](https://docs.rs/gitway-lib)
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](https://github.com/steelbore/gitssh/blob/main/LICENSE)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](https://github.com/steelbore/gitway/blob/main/LICENSE)
 
 ---
 
@@ -24,10 +24,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ## Quick start
 
 ```rust
-use gitssh_lib::{GitwayConfig, GitwaySession};
+use gitway_lib::{GitwayConfig, GitwaySession};
 
 #[tokio::main]
-async fn main() -> Result<(), gitssh_lib::GitwayError> {
+async fn main() -> Result<(), gitway_lib::GitwayError> {
     let config = GitwayConfig::github();
     let mut session = GitwaySession::connect(&config).await?;
     session.authenticate_best(&config).await?;
@@ -56,13 +56,13 @@ async fn main() -> Result<(), gitssh_lib::GitwayError> {
 ## GitHub Enterprise Server
 
 ```rust
-use gitssh_lib::GitwayConfig;
+use gitway_lib::GitwayConfig;
 use std::path::PathBuf;
 
 let config = GitwayConfig::builder("ghe.corp.example.com")
     .port(22)
     .identity_file(PathBuf::from("/home/user/.ssh/id_ed25519"))
-    .custom_known_hosts(PathBuf::from("/etc/gitssh/known_hosts"))
+    .custom_known_hosts(PathBuf::from("/etc/gitway/known_hosts"))
     .build();
 ```
 
@@ -76,7 +76,7 @@ ghe.corp.example.com SHA256:<base64-fingerprint>
 ## Error handling
 
 ```rust
-use gitssh_lib::GitwayError;
+use gitway_lib::GitwayError;
 
 fn handle(err: &GitwayError) {
     if err.is_host_key_mismatch() {
@@ -104,4 +104,4 @@ on drop.
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](https://github.com/steelbore/gitssh/blob/main/LICENSE).
+GPL-3.0-or-later. See [LICENSE](https://github.com/steelbore/gitway/blob/main/LICENSE).

@@ -31,7 +31,7 @@ Guidelines for AI agents working in this codebase.
 4. Add a `GitwayConfig::<provider>()` convenience constructor in `gitway-lib/src/config.rs`.
 5. Add tests for the new provider in `hostkey.rs` (see existing GitHub/GitLab/Codeberg tests).
 6. Update `CLAUDE.md` with the new fingerprint rotation URL.
-7. Update the `providers` list in `run_describe()` in `gitssh-cli/src/main.rs`.
+7. Update the `providers` list in `run_describe()` in `gitway-cli/src/main.rs`.
 
 ## How to run integration tests
 

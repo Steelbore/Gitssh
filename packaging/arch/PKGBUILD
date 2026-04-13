@@ -11,13 +11,13 @@ pkgver=0.3.0
 pkgrel=1
 pkgdesc="Purpose-built SSH transport client for Git hosting services (GitHub, GitLab, Codeberg)"
 arch=('x86_64')
-url="https://github.com/steelbore/gitssh"
+url="https://github.com/steelbore/gitway"
 license=('GPL-3.0-or-later')
 provides=('gitway')
 conflicts=('gitway' 'gitway-git')
 
 source=(
-  "${pkgname}-${pkgver}.tar.gz::https://github.com/steelbore/gitssh/releases/download/v${pkgver}/gitway-v${pkgver}-linux-x86_64.tar.gz"
+  "${pkgname}-${pkgver}.tar.gz::https://github.com/steelbore/gitway/releases/download/v${pkgver}/gitway-v${pkgver}-linux-x86_64.tar.gz"
 )
 # Update sha256sums by running: updpkgsums
 # or manually:  sha256sum gitway-bin-${pkgver}.tar.gz

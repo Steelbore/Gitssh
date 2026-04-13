@@ -19,7 +19,7 @@ Gitway is a standalone binary (and optionally a library) that replaces `ssh` for
 # **2\. Repository Layout**
 
 t  
-gitssh/  
+gitway/  
 ├── Cargo.toml  
 ├── src/  
 │   ├── main.rs          \# CLI entry point  

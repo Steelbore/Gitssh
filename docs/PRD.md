@@ -121,7 +121,7 @@ Gitway solves these by being opinionated. It connects only to GitHub (and GitHub
 ## **7.1 Crate Structure**
 
 t  
-gitssh/  
+gitway/  
 ├── Cargo.toml               \# workspace root  
 ├── gitway-lib/  
 │   ├── Cargo.toml            \# library crate  

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Build recipes for Gitssh.
+# Build recipes for Gitway.
 #
 # Prerequisites: gcc and nasm must be in PATH.
 # On NixOS: `nix-shell -p gcc -p nasm` (or keep a persistent shell).

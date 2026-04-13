@@ -31,8 +31,8 @@ pub enum OutputFormat {
 
 /// Optional subcommands for agent/CI discovery (SFRS Rule 4).
 #[derive(Debug, Subcommand)]
-pub enum GitsshSubcommand {
-    /// Emit the full JSON Schema (Draft 2020-12) for all Gitssh commands.
+pub enum GitwaySubcommand {
+    /// Emit the full JSON Schema (Draft 2020-12) for all Gitway commands.
     ///
     /// Output is always JSON regardless of `--format`.
     Schema,
@@ -45,7 +45,7 @@ pub enum GitsshSubcommand {
 
 // ── Main CLI struct ───────────────────────────────────────────────────────────
 
-/// Gitssh — purpose-built SSH transport client for Git hosting services.
+/// Gitway — purpose-built SSH transport client for Git hosting services.
 ///
 /// Acts as a drop-in replacement for `ssh` when used with `GIT_SSH_COMMAND`
 /// or `core.sshCommand`.  Supports GitHub, GitLab, Codeberg, and any
@@ -76,7 +76,7 @@ pub struct Cli {
     // ── Subcommands ───────────────────────────────────────────────────────────
 
     #[command(subcommand)]
-    pub subcommand: Option<GitsshSubcommand>,
+    pub subcommand: Option<GitwaySubcommand>,
 
     // ── Positional arguments ──────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ pub struct Cli {
 
     /// Path to the SSH private key to use for authentication.
     ///
-    /// If omitted, Gitssh searches `~/.ssh/id_ed25519`, `~/.ssh/id_ecdsa`,
+    /// If omitted, Gitway searches `~/.ssh/id_ed25519`, `~/.ssh/id_ecdsa`,
     /// and `~/.ssh/id_rsa` in that order, then falls back to the SSH agent.
     #[arg(short = 'i', long = "identity", value_name = "FILE")]
     pub identity: Option<PathBuf>,
@@ -159,7 +159,7 @@ pub struct Cli {
     #[arg(long = "test", action = ArgAction::SetTrue, conflicts_with = "install")]
     pub test: bool,
 
-    /// Register Gitssh as the global `core.sshCommand` in Git config (FR-22).
+    /// Register Gitway as the global `core.sshCommand` in Git config (FR-22).
     ///
     /// Runs: `git config --global core.sshCommand 'gitway'`
     /// Supports `--json` / `--format json` for structured output.

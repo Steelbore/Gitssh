@@ -13,13 +13,13 @@ pkgver=r0.HEAD
 pkgrel=1
 pkgdesc="Purpose-built SSH transport client for Git hosting services (GitHub, GitLab, Codeberg) — git HEAD"
 arch=('x86_64' 'aarch64')
-url="https://github.com/steelbore/gitssh"
+url="https://github.com/steelbore/gitway"
 license=('GPL-3.0-or-later')
 provides=('gitway')
 conflicts=('gitway' 'gitway-bin')
 makedepends=('rust' 'cargo' 'perl' 'gcc' 'pkg-config')
 
-source=("${pkgname}::git+https://github.com/steelbore/gitssh.git")
+source=("${pkgname}::git+https://github.com/steelbore/gitway.git")
 sha256sums=('SKIP')
 
 pkgver() {

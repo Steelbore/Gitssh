@@ -3,7 +3,7 @@
 //! Fuzz target: OpenSSH private key parsing.
 //!
 //! Exercises `russh::keys::decode_secret_key` with arbitrary bytes and
-//! ensures Gitssh's key-loading path never panics or produces undefined
+//! ensures Gitway's key-loading path never panics or produces undefined
 //! behaviour regardless of input.
 //!
 //! The target passes arbitrary bytes directly to the key decoder.  Encrypted

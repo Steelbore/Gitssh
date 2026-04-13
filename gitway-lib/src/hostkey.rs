@@ -2,7 +2,7 @@
 // Rust guideline compliant 2026-03-30
 //! SSH host-key fingerprint pinning for well-known Git hosting services (FR-6, FR-7).
 //!
-//! Gitssh embeds the published SHA-256 fingerprints for GitHub, GitLab, and
+//! Gitway embeds the published SHA-256 fingerprints for GitHub, GitLab, and
 //! Codeberg.  On every connection the server's presented key is hashed and the
 //! resulting fingerprint is compared against the embedded list for that host.
 //! Any mismatch aborts the connection immediately.

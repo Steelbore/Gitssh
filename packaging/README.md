@@ -56,3 +56,18 @@ The library crate is published to crates.io as `gitway-lib`:
 ```sh
 cargo add gitway-lib
 ```
+
+Release workflow (workspace):
+```sh
+# 1) Dry-run the library package
+cargo publish -p gitway-lib --dry-run
+
+# 2) Publish the library first
+cargo publish -p gitway-lib
+
+# 3) Wait for crates.io index propagation (usually a few minutes)
+
+# 4) Dry-run and publish the CLI crate
+cargo publish -p gitway --dry-run
+cargo publish -p gitway
+```

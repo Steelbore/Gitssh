@@ -4,6 +4,8 @@ Purpose-built SSH transport client for Git operations against GitHub and GitHub
 Enterprise Server (GHE).
 
 [![CI](https://github.com/steelbore/gitway/actions/workflows/ci.yml/badge.svg)](https://github.com/steelbore/gitway/actions/workflows/ci.yml)
+[![Crates.io: gitway](https://img.shields.io/crates/v/gitway.svg)](https://crates.io/crates/gitway)
+[![Crates.io: gitway-lib](https://img.shields.io/crates/v/gitway-lib.svg)](https://crates.io/crates/gitway-lib)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![MSRV: 1.85](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](rust-toolchain.toml)
 
@@ -177,7 +179,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-gitway-lib = { git = "https://github.com/steelbore/gitway" }
+gitway-lib = "0.3.1"
 ```
 
 ### Connect and run a Git command

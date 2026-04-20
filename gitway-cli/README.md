@@ -64,7 +64,7 @@ If you need embedding in Rust code, use `gitway-lib`:
 
 ```toml
 [dependencies]
-gitway-lib = "0.3.1"
+gitway-lib = "0.4.0"
 ```
 
 Repository and docs: <https://github.com/steelbore/gitway>

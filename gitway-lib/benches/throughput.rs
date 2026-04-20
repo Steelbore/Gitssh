@@ -25,7 +25,7 @@
 use std::process::Command;
 use std::time::Instant;
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use gitway_lib::{GitwayConfig, GitwaySession};
 
 /// Returns `true` when the integration environment variable is set.

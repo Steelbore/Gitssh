@@ -12,14 +12,14 @@ use std::path::Path;
 use ssh_key::{HashAlg, PrivateKey};
 use zeroize::Zeroizing;
 
-use gitway_lib::GitwayError;
-use gitway_lib::auth::{IdentityResolution, find_identity};
+use gitway_lib::auth::{find_identity, IdentityResolution};
 use gitway_lib::keygen;
 use gitway_lib::sshsig;
+use gitway_lib::GitwayError;
 
 use crate::cli::{HashKind, SignArgs};
 use crate::keygen::{hashkind_to_sshkey, open_input, write_output};
-use crate::{OutputMode, now_iso8601, prompt_passphrase};
+use crate::{now_iso8601, prompt_passphrase, OutputMode};
 
 /// Runs `gitway sign` / `gitway keygen sign`.
 pub fn run(args: &SignArgs, mode: OutputMode) -> Result<u32, GitwayError> {
@@ -79,17 +79,16 @@ fn resolve_key_path(explicit: Option<&Path>) -> Result<std::path::PathBuf, Gitwa
     // the same key for signing.
     let config = gitway_lib::GitwayConfig::github();
     match find_identity(&config)? {
-        IdentityResolution::Found { path, .. } | IdentityResolution::Encrypted { path } => {
-            Ok(path)
-        }
+        IdentityResolution::Found { path, .. } | IdentityResolution::Encrypted { path } => Ok(path),
         IdentityResolution::NotFound => Err(GitwayError::no_key_found()),
     }
 }
 
 fn load_and_decrypt(path: &Path) -> Result<PrivateKey, GitwayError> {
     let pem = fs::read_to_string(path)?;
-    let key = PrivateKey::from_openssh(&pem)
-        .map_err(|e| GitwayError::invalid_config(format!("cannot parse {}: {e}", path.display())))?;
+    let key = PrivateKey::from_openssh(&pem).map_err(|e| {
+        GitwayError::invalid_config(format!("cannot parse {}: {e}", path.display()))
+    })?;
     if !key.is_encrypted() {
         return Ok(key);
     }

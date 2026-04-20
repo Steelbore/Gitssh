@@ -29,8 +29,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::hostkey::{
-    DEFAULT_CODEBERG_HOST, DEFAULT_GITHUB_HOST, DEFAULT_GITLAB_HOST, DEFAULT_PORT,
-    FALLBACK_PORT, GITHUB_FALLBACK_HOST, GITLAB_FALLBACK_HOST,
+    DEFAULT_CODEBERG_HOST, DEFAULT_GITHUB_HOST, DEFAULT_GITLAB_HOST, DEFAULT_PORT, FALLBACK_PORT,
+    GITHUB_FALLBACK_HOST, GITLAB_FALLBACK_HOST,
 };
 
 // ── Public config type ────────────────────────────────────────────────────────

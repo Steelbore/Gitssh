@@ -81,7 +81,11 @@ impl KeyType {
 ///
 /// Returns [`GitwayError::signing`] on RNG failure or on an invalid
 /// `bits` value (for RSA: below 2048 or above 16384).
-pub fn generate(kind: KeyType, bits: Option<u32>, comment: &str) -> Result<PrivateKey, GitwayError> {
+pub fn generate(
+    kind: KeyType,
+    bits: Option<u32>,
+    comment: &str,
+) -> Result<PrivateKey, GitwayError> {
     let algorithm = match kind {
         KeyType::Ed25519 => Algorithm::Ed25519,
         KeyType::EcdsaP256 => Algorithm::Ecdsa {
@@ -168,9 +172,8 @@ pub fn write_keypair(
         }
         Some(pp) => {
             let mut rng = OsRng;
-            key.encrypt(&mut rng, pp.as_bytes()).map_err(|e| {
-                GitwayError::signing(format!("failed to encrypt private key: {e}"))
-            })?
+            key.encrypt(&mut rng, pp.as_bytes())
+                .map_err(|e| GitwayError::signing(format!("failed to encrypt private key: {e}")))?
         }
         None => key.clone(),
     };
@@ -339,8 +342,10 @@ mod tests {
         let pem = fs::read_to_string(&path).unwrap();
         let loaded = PrivateKey::from_openssh(&pem).unwrap();
         assert!(!loaded.is_encrypted());
-        assert_eq!(loaded.public_key().fingerprint(HashAlg::Sha256),
-                   key.public_key().fingerprint(HashAlg::Sha256));
+        assert_eq!(
+            loaded.public_key().fingerprint(HashAlg::Sha256),
+            key.public_key().fingerprint(HashAlg::Sha256)
+        );
 
         let pub_path = path.with_extension("pub");
         assert!(pub_path.exists(), "expected companion .pub file");

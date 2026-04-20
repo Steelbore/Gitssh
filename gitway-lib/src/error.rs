@@ -255,9 +255,7 @@ impl GitwayError {
             GitwayErrorKind::NoKeyFound => {
                 "Run 'ssh-keygen -t ed25519' to generate a key, or use --identity to specify one"
             }
-            GitwayErrorKind::InvalidConfig { .. } => {
-                "Run 'gitway --help' for usage information"
-            }
+            GitwayErrorKind::InvalidConfig { .. } => "Run 'gitway --help' for usage information",
             GitwayErrorKind::Signing { .. } => {
                 "Ensure the private key is readable and the passphrase is correct; \
                  run with --verbose to see the underlying cryptographic error"
@@ -295,7 +293,6 @@ impl std::error::Error for GitwayError {
             _ => None,
         }
     }
-
 }
 
 impl From<russh::Error> for GitwayError {
@@ -319,7 +316,9 @@ impl From<std::io::Error> for GitwayError {
 impl From<russh::AgentAuthError> for GitwayError {
     fn from(e: russh::AgentAuthError) -> Self {
         match e {
-            russh::AgentAuthError::Send(_) => Self::new(GitwayErrorKind::Ssh(russh::Error::SendError)),
+            russh::AgentAuthError::Send(_) => {
+                Self::new(GitwayErrorKind::Ssh(russh::Error::SendError))
+            }
             russh::AgentAuthError::Key(k) => Self::new(GitwayErrorKind::Keys(k)),
         }
     }

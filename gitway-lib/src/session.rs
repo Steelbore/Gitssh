@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use russh::client;
 use russh::keys::{HashAlg, PrivateKeyWithHashAlg};
-use russh::{Disconnect, Preferred, cipher, kex};
+use russh::{cipher, kex, Disconnect, Preferred};
 
 use crate::config::GitwayConfig;
 use crate::error::{GitwayError, GitwayErrorKind};
@@ -68,9 +68,7 @@ impl client::Handler for GitwayHandler {
             return Ok(true);
         }
 
-        let fp = server_public_key
-            .fingerprint(HashAlg::Sha256)
-            .to_string();
+        let fp = server_public_key.fingerprint(HashAlg::Sha256).to_string();
 
         log::debug!("session: checking server host key {fp}");
 
@@ -159,16 +157,16 @@ impl GitwaySession {
 
         log::debug!("session: connecting to {}:{}", config.host, config.port);
 
-        let handle = client::connect(
-            russh_cfg,
-            (config.host.as_str(), config.port),
-            handler,
-        )
-        .await?;
+        let handle =
+            client::connect(russh_cfg, (config.host.as_str(), config.port), handler).await?;
 
         log::debug!("session: SSH handshake complete with {}", config.host);
 
-        Ok(Self { handle, auth_banner, verified_fingerprint })
+        Ok(Self {
+            handle,
+            auth_banner,
+            verified_fingerprint,
+        })
     }
 
     // ── Authentication ────────────────────────────────────────────────────────
@@ -254,7 +252,7 @@ impl GitwaySession {
     /// Returns [`GitwayError::is_no_key_found`] when no key is available via
     /// any discovery method.
     pub async fn authenticate_best(&mut self, config: &GitwayConfig) -> Result<(), GitwayError> {
-        use crate::auth::{IdentityResolution, find_identity, wrap_key};
+        use crate::auth::{find_identity, wrap_key, IdentityResolution};
 
         let resolution = find_identity(config)?;
 
@@ -378,17 +376,16 @@ impl GitwaySession {
                         .await
                         .map_err(GitwayError::from)
                 }
-                AgentIdentity::Certificate { certificate, .. } => {
-                    self.handle
-                        .authenticate_certificate_with(
-                            username,
-                            certificate.clone(),
-                            None,
-                            &mut conn.client,
-                        )
-                        .await
-                        .map_err(GitwayError::from)
-                }
+                AgentIdentity::Certificate { certificate, .. } => self
+                    .handle
+                    .authenticate_certificate_with(
+                        username,
+                        certificate.clone(),
+                        None,
+                        &mut conn.client,
+                    )
+                    .await
+                    .map_err(GitwayError::from),
             };
 
             match result? {
@@ -527,8 +524,8 @@ fn build_russh_config(inactivity_timeout: Duration) -> client::Config {
         inactivity_timeout: Some(inactivity_timeout),
         preferred: Preferred {
             kex: Cow::Owned(vec![
-                kex::CURVE25519,              // curve25519-sha256 (RFC 8731)
-                kex::CURVE25519_PRE_RFC_8731, // curve25519-sha256@libssh.org
+                kex::CURVE25519,                  // curve25519-sha256 (RFC 8731)
+                kex::CURVE25519_PRE_RFC_8731,     // curve25519-sha256@libssh.org
                 kex::EXTENSION_SUPPORT_AS_CLIENT, // ext-info-c (FR-4)
             ]),
             cipher: Cow::Owned(vec![
@@ -555,8 +552,15 @@ mod tests {
     #[test]
     fn config_cipher_excludes_3des() {
         let config = build_russh_config(Duration::from_secs(60));
-        let found = config.preferred.cipher.iter().any(|c| c.as_ref() == "3des-cbc");
-        assert!(!found, "3DES-CBC must not appear in the cipher list (NFR-6)");
+        let found = config
+            .preferred
+            .cipher
+            .iter()
+            .any(|c| c.as_ref() == "3des-cbc");
+        assert!(
+            !found,
+            "3DES-CBC must not appear in the cipher list (NFR-6)"
+        );
     }
 
     /// DSA must never appear in the key-algorithm list (NFR-6).
@@ -580,7 +584,11 @@ mod tests {
     #[test]
     fn config_kex_includes_curve25519() {
         let config = build_russh_config(Duration::from_secs(60));
-        let found = config.preferred.kex.iter().any(|k| k.as_ref() == "curve25519-sha256");
+        let found = config
+            .preferred
+            .kex
+            .iter()
+            .any(|k| k.as_ref() == "curve25519-sha256");
         assert!(found, "curve25519-sha256 must be in the kex list (FR-2)");
     }
 
@@ -593,6 +601,9 @@ mod tests {
             .cipher
             .iter()
             .any(|c| c.as_ref() == "chacha20-poly1305@openssh.com");
-        assert!(found, "chacha20-poly1305@openssh.com must be in the cipher list (FR-3)");
+        assert!(
+            found,
+            "chacha20-poly1305@openssh.com must be in the cipher list (FR-3)"
+        );
     }
 }

@@ -23,9 +23,9 @@ use std::process;
 use clap::Parser as _;
 use zeroize::{Zeroize as _, Zeroizing};
 
-use gitway_lib::auth::{IdentityResolution, find_identity};
 #[cfg(unix)]
 use gitway_lib::auth::connect_agent;
+use gitway_lib::auth::{find_identity, IdentityResolution};
 use gitway_lib::{GitwayConfig, GitwayError, GitwaySession};
 
 use cli::{Cli, GitwaySubcommand, OutputFormat};
@@ -288,13 +288,17 @@ async fn run_test(config: &GitwayConfig, mode: OutputMode) -> Result<u32, Gitway
     }
 
     let auth_result = if let Some((passphrase, path)) = pre_passphrase {
-        session.authenticate_with_passphrase(config, &path, &passphrase).await
+        session
+            .authenticate_with_passphrase(config, &path, &passphrase)
+            .await
     } else {
         authenticate_with_prompt(&mut session, config).await
     };
 
     let authenticated = auth_result.is_ok();
-    let no_key = auth_result.as_ref().is_err_and(GitwayError::is_no_key_found);
+    let no_key = auth_result
+        .as_ref()
+        .is_err_and(GitwayError::is_no_key_found);
 
     if mode == OutputMode::Human {
         match &auth_result {
@@ -365,7 +369,9 @@ async fn run_exec(config: &GitwayConfig, command_parts: &[String]) -> Result<u32
     let mut session = GitwaySession::connect(config).await?;
 
     if let Some((passphrase, path)) = pre_passphrase {
-        session.authenticate_with_passphrase(config, &path, &passphrase).await?;
+        session
+            .authenticate_with_passphrase(config, &path, &passphrase)
+            .await?;
     } else {
         authenticate_with_prompt(&mut session, config).await?;
     }
@@ -646,7 +652,10 @@ async fn authenticate_with_prompt(
     }
 
     // A key exists but is encrypted — find its path and prompt.
-    let IdentityResolution::Encrypted { path: encrypted_path } = find_identity(config)? else {
+    let IdentityResolution::Encrypted {
+        path: encrypted_path,
+    } = find_identity(config)?
+    else {
         return Err(GitwayError::no_key_found());
     };
 

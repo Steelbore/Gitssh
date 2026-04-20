@@ -94,7 +94,7 @@ pub const GITHUB_FINGERPRINTS: &[&str] = &[
 pub const GITLAB_FINGERPRINTS: &[&str] = &[
     "SHA256:eUXGGm1YGsMAS7vkcx6JOJdOGHPem5gQp4taiCfCLB8", // Ed25519
     "SHA256:HbW3g8zUjNSksFbqTiUWPWg2Bq1x8xdGUrliXFzSnUw", // ECDSA-SHA2-nistp256
-    "SHA256:ROQFvPThGrW4RuWLoL9tq9I9zJ42fK4XywyRtbOz/EQ",  // RSA
+    "SHA256:ROQFvPThGrW4RuWLoL9tq9I9zJ42fK4XywyRtbOz/EQ", // RSA
 ];
 
 /// Codeberg.org's published SSH host-key fingerprints (SHA-256).
@@ -107,8 +107,8 @@ pub const GITLAB_FINGERPRINTS: &[&str] = &[
 /// **If Codeberg rotates its keys, update this constant and cut a patch release.**
 pub const CODEBERG_FINGERPRINTS: &[&str] = &[
     "SHA256:mIlxA9k46MmM6qdJOdMnAQpzGxF4WIVVL+fj+wZbw0g", // Ed25519
-    "SHA256:T9FYDEHELhVkulEKKwge5aVhVTbqCW0MIRwAfpARs/E",  // ECDSA-SHA2-nistp256
-    "SHA256:6QQmYi4ppFS4/+zSZ5S4IU+4sa6rwvQ4PbhCtPEBekQ",  // RSA
+    "SHA256:T9FYDEHELhVkulEKKwge5aVhVTbqCW0MIRwAfpARs/E", // ECDSA-SHA2-nistp256
+    "SHA256:6QQmYi4ppFS4/+zSZ5S4IU+4sa6rwvQ4PbhCtPEBekQ", // RSA
 ];
 
 // ── Known-hosts parser for custom / GHE support ───────────────────────────────
@@ -121,10 +121,7 @@ pub const CODEBERG_FINGERPRINTS: &[&str] = &[
 /// # Errors
 ///
 /// Returns an error if the file cannot be read.
-fn fingerprints_from_known_hosts(
-    path: &Path,
-    hostname: &str,
-) -> Result<Vec<String>, GitwayError> {
+fn fingerprints_from_known_hosts(path: &Path, hostname: &str) -> Result<Vec<String>, GitwayError> {
     let content = std::fs::read_to_string(path)?;
     let mut fps = Vec::new();
 
@@ -178,9 +175,10 @@ pub fn fingerprints_for_host(
         "gitlab.com" | "altssh.gitlab.com" => {
             GITLAB_FINGERPRINTS.iter().map(|&s| s.to_owned()).collect()
         }
-        "codeberg.org" => {
-            CODEBERG_FINGERPRINTS.iter().map(|&s| s.to_owned()).collect()
-        }
+        "codeberg.org" => CODEBERG_FINGERPRINTS
+            .iter()
+            .map(|&s| s.to_owned())
+            .collect(),
         _ => Vec::new(),
     };
 

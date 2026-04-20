@@ -85,13 +85,9 @@ impl AllowedSigners {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            let entry = parse_line(line)
-                .map_err(|msg| {
-                    GitwayError::invalid_config(format!(
-                        "allowed_signers line {}: {msg}",
-                        lineno + 1
-                    ))
-                })?;
+            let entry = parse_line(line).map_err(|msg| {
+                GitwayError::invalid_config(format!("allowed_signers line {}: {msg}", lineno + 1))
+            })?;
             entries.push(entry);
         }
         Ok(Self { entries })
@@ -132,11 +128,7 @@ impl AllowedSigners {
     /// either has no `namespaces` restriction or includes `namespace` in its
     /// list.
     #[must_use]
-    pub fn find_principals<'a>(
-        &'a self,
-        public_key: &PublicKey,
-        namespace: &str,
-    ) -> Vec<&'a str> {
+    pub fn find_principals<'a>(&'a self, public_key: &PublicKey, namespace: &str) -> Vec<&'a str> {
         let mut out = Vec::new();
         for entry in &self.entries {
             if entry.public_key != *public_key {
@@ -161,12 +153,7 @@ impl AllowedSigners {
     /// fnmatch-style globs (`*`, `?`, character classes). Negation prefixes
     /// (`!pattern`) are honored — a matching negation rejects the entry.
     #[must_use]
-    pub fn is_authorized(
-        &self,
-        identity: &str,
-        public_key: &PublicKey,
-        namespace: &str,
-    ) -> bool {
+    pub fn is_authorized(&self, identity: &str, public_key: &PublicKey, namespace: &str) -> bool {
         for entry in &self.entries {
             if entry.public_key != *public_key {
                 continue;
@@ -221,8 +208,8 @@ fn parse_line(line: &str) -> Result<Entry, String> {
 
     // 3. Reassemble the OpenSSH public-key line and parse it.
     let openssh = format!("{key_type} {key_base64}");
-    let public_key = PublicKey::from_openssh(&openssh)
-        .map_err(|e| format!("invalid public key: {e}"))?;
+    let public_key =
+        PublicKey::from_openssh(&openssh).map_err(|e| format!("invalid public key: {e}"))?;
 
     Ok(Entry {
         principals,
@@ -246,9 +233,7 @@ fn take_field(input: &str) -> Result<(String, &str), String> {
         let remainder = &stripped[end + 1..];
         Ok((field, remainder))
     } else {
-        let end = input
-            .find(char::is_whitespace)
-            .unwrap_or(input.len());
+        let end = input.find(char::is_whitespace).unwrap_or(input.len());
         Ok((input[..end].to_owned(), &input[end..]))
     }
 }
@@ -416,18 +401,15 @@ mod tests {
 
     #[test]
     fn parse_skips_blanks_and_comments() {
-        let input = format!(
-            "\n# top comment\n\n   # indented comment\ntim@example.com {SAMPLE_ED25519}\n"
-        );
+        let input =
+            format!("\n# top comment\n\n   # indented comment\ntim@example.com {SAMPLE_ED25519}\n");
         let signers = AllowedSigners::parse(&input).unwrap();
         assert_eq!(signers.len(), 1);
     }
 
     #[test]
     fn parse_namespaces_option() {
-        let input = format!(
-            "tim@example.com namespaces=\"git,file\" {SAMPLE_ED25519}"
-        );
+        let input = format!("tim@example.com namespaces=\"git,file\" {SAMPLE_ED25519}");
         let signers = AllowedSigners::parse(&input).unwrap();
         let ns = signers.entries()[0].namespaces.as_ref().unwrap();
         assert_eq!(ns, &vec!["git".to_owned(), "file".to_owned()]);
@@ -435,9 +417,7 @@ mod tests {
 
     #[test]
     fn parse_multiple_principals_and_quoted() {
-        let input = format!(
-            "\"alice@example.com,bob@example.com\" {SAMPLE_ED25519}"
-        );
+        let input = format!("\"alice@example.com,bob@example.com\" {SAMPLE_ED25519}");
         let signers = AllowedSigners::parse(&input).unwrap();
         assert_eq!(
             signers.entries()[0].principals,
@@ -463,9 +443,7 @@ mod tests {
 
     #[test]
     fn is_authorized_respects_negation() {
-        let input = format!(
-            "*@example.com,!evil@example.com {SAMPLE_ED25519}"
-        );
+        let input = format!("*@example.com,!evil@example.com {SAMPLE_ED25519}");
         let signers = AllowedSigners::parse(&input).unwrap();
         let key = &signers.entries()[0].public_key;
         assert!(signers.is_authorized("tim@example.com", key, "git"));
@@ -474,9 +452,7 @@ mod tests {
 
     #[test]
     fn is_authorized_respects_namespace_restriction() {
-        let input = format!(
-            "tim@example.com namespaces=\"git\" {SAMPLE_ED25519}"
-        );
+        let input = format!("tim@example.com namespaces=\"git\" {SAMPLE_ED25519}");
         let signers = AllowedSigners::parse(&input).unwrap();
         let key = &signers.entries()[0].public_key;
         assert!(signers.is_authorized("tim@example.com", key, "git"));

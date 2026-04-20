@@ -42,10 +42,14 @@ fn generate_test_key(dir: &TempDir) -> PathBuf {
     let key_path = dir.path().join("k");
     let output = Command::new(gitway_keygen())
         .args([
-            "-t", "ed25519",
-            "-f", key_path.to_str().unwrap(),
-            "-N", "",
-            "-C", "gitway-compat@test",
+            "-t",
+            "ed25519",
+            "-f",
+            key_path.to_str().unwrap(),
+            "-N",
+            "",
+            "-C",
+            "gitway-compat@test",
         ])
         .output()
         .expect("failed to run gitway-keygen");
@@ -55,7 +59,11 @@ fn generate_test_key(dir: &TempDir) -> PathBuf {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(key_path.exists(), "expected private key at {}", key_path.display());
+    assert!(
+        key_path.exists(),
+        "expected private key at {}",
+        key_path.display()
+    );
     assert!(
         key_path.with_extension("pub").exists(),
         "expected public key at {}.pub",
@@ -74,22 +82,13 @@ fn sign_then_check_novalidate_roundtrip() {
 
     // Sign stdin → armored signature on stdout.
     let mut child = Command::new(gitway_keygen())
-        .args([
-            "-Y", "sign",
-            "-n", "git",
-            "-f", key_path.to_str().unwrap(),
-        ])
+        .args(["-Y", "sign", "-n", "git", "-f", key_path.to_str().unwrap()])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("failed to spawn gitway-keygen -Y sign");
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(payload)
-        .unwrap();
+    child.stdin.as_mut().unwrap().write_all(payload).unwrap();
     let sign_output = child.wait_with_output().expect("sign subprocess failed");
     assert!(
         sign_output.status.success(),
@@ -108,21 +107,19 @@ fn sign_then_check_novalidate_roundtrip() {
 
     let mut child = Command::new(gitway_keygen())
         .args([
-            "-Y", "check-novalidate",
-            "-n", "git",
-            "-s", sig_path.to_str().unwrap(),
+            "-Y",
+            "check-novalidate",
+            "-n",
+            "git",
+            "-s",
+            sig_path.to_str().unwrap(),
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(payload)
-        .unwrap();
+    child.stdin.as_mut().unwrap().write_all(payload).unwrap();
     let verify_output = child.wait_with_output().unwrap();
     assert!(
         verify_output.status.success(),
@@ -138,17 +135,18 @@ fn tampered_payload_is_rejected() {
 
     // Sign the original payload.
     let mut child = Command::new(gitway_keygen())
-        .args([
-            "-Y", "sign",
-            "-n", "git",
-            "-f", key_path.to_str().unwrap(),
-        ])
+        .args(["-Y", "sign", "-n", "git", "-f", key_path.to_str().unwrap()])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child.stdin.as_mut().unwrap().write_all(b"original").unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b"original")
+        .unwrap();
     let sign_output = child.wait_with_output().unwrap();
     assert!(sign_output.status.success());
     let sig_path = dir.path().join("sig");
@@ -157,9 +155,12 @@ fn tampered_payload_is_rejected() {
     // Try to verify against a different payload — must fail.
     let mut child = Command::new(gitway_keygen())
         .args([
-            "-Y", "check-novalidate",
-            "-n", "git",
-            "-s", sig_path.to_str().unwrap(),
+            "-Y",
+            "check-novalidate",
+            "-n",
+            "git",
+            "-s",
+            sig_path.to_str().unwrap(),
         ])
         .stdin(Stdio::piped())
         .stderr(Stdio::piped())
@@ -187,11 +188,7 @@ fn namespace_mismatch_is_rejected() {
     let key_path = generate_test_key(&dir);
 
     let mut child = Command::new(gitway_keygen())
-        .args([
-            "-Y", "sign",
-            "-n", "git",
-            "-f", key_path.to_str().unwrap(),
-        ])
+        .args(["-Y", "sign", "-n", "git", "-f", key_path.to_str().unwrap()])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -206,9 +203,12 @@ fn namespace_mismatch_is_rejected() {
     // Verify with wrong namespace → fails.
     let mut child = Command::new(gitway_keygen())
         .args([
-            "-Y", "check-novalidate",
-            "-n", "file",
-            "-s", sig_path.to_str().unwrap(),
+            "-Y",
+            "check-novalidate",
+            "-n",
+            "file",
+            "-s",
+            sig_path.to_str().unwrap(),
         ])
         .stdin(Stdio::piped())
         .stderr(Stdio::piped())
@@ -296,11 +296,7 @@ fn openssh_can_verify_our_signature() {
 
     // Sign with gitway-keygen.
     let mut child = Command::new(gitway_keygen())
-        .args([
-            "-Y", "sign",
-            "-n", "git",
-            "-f", key_path.to_str().unwrap(),
-        ])
+        .args(["-Y", "sign", "-n", "git", "-f", key_path.to_str().unwrap()])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -315,9 +311,12 @@ fn openssh_can_verify_our_signature() {
     // Verify with OpenSSH's ssh-keygen.
     let mut child = Command::new(&openssh)
         .args([
-            "-Y", "check-novalidate",
-            "-n", "git",
-            "-s", sig_path.to_str().unwrap(),
+            "-Y",
+            "check-novalidate",
+            "-n",
+            "git",
+            "-s",
+            sig_path.to_str().unwrap(),
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -256,12 +256,10 @@ pub struct VerifyArgs {
 )]
 pub struct Cli {
     // ── Subcommands ───────────────────────────────────────────────────────────
-
     #[command(subcommand)]
     pub subcommand: Option<GitwaySubcommand>,
 
     // ── Positional arguments ──────────────────────────────────────────────────
-
     /// SSH host to connect to.
     ///
     /// Defaults to `github.com`.  Well-known hosts with embedded fingerprints:
@@ -278,7 +276,6 @@ pub struct Cli {
     pub command: Vec<String>,
 
     // ── Identity options ──────────────────────────────────────────────────────
-
     /// Path to the SSH private key to use for authentication.
     ///
     /// If omitted, Gitway searches `~/.ssh/id_ed25519`, `~/.ssh/id_ecdsa`,
@@ -291,13 +288,11 @@ pub struct Cli {
     pub cert: Option<PathBuf>,
 
     // ── Connection options ────────────────────────────────────────────────────
-
     /// SSH port (default: 22).
     #[arg(short = 'p', long = "port", value_name = "PORT", default_value_t = 22)]
     pub port: u16,
 
     // ── Security ──────────────────────────────────────────────────────────────
-
     /// Skip host-key verification.
     ///
     /// **DANGER:** This disables the MITM protection provided by pinned
@@ -306,7 +301,6 @@ pub struct Cli {
     pub insecure_skip_host_check: bool,
 
     // ── Output format (SFRS Rule 1) ───────────────────────────────────────────
-
     /// Emit structured JSON output (shorthand for `--format json`).
     ///
     /// Applies to `--test` and `--install`.  Errors are also written to
@@ -326,13 +320,11 @@ pub struct Cli {
     pub no_color: bool,
 
     // ── Diagnostic ────────────────────────────────────────────────────────────
-
     /// Enable verbose debug logging to stderr.
     #[arg(short = 'v', long = "verbose", action = ArgAction::SetTrue)]
     pub verbose: bool,
 
     // ── Special modes ─────────────────────────────────────────────────────────
-
     /// Verify connectivity to the target host and display the server banner (FR-21).
     ///
     /// Connects, authenticates, and prints the welcome message.

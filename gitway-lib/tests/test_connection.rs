@@ -14,7 +14,7 @@
 
 use std::time::{Duration, Instant};
 
-use gitway_lib::{GitwayConfig, GitwaySession, hostkey};
+use gitway_lib::{hostkey, GitwayConfig, GitwaySession};
 
 /// Returns `true` when integration tests are enabled.
 fn integration_enabled() -> bool {
@@ -71,8 +71,7 @@ async fn host_key_mismatch_is_rejected() {
     // Now attempt a connection with the fake fingerprint via a custom
     // known_hosts file written to a temporary path.
     let tmp = tempfile::NamedTempFile::new().expect("temp file");
-    std::fs::write(tmp.path(), format!("github.com {fake_fp}\n"))
-        .expect("write temp known_hosts");
+    std::fs::write(tmp.path(), format!("github.com {fake_fp}\n")).expect("write temp known_hosts");
 
     let config = GitwayConfig::builder("github.com")
         .custom_known_hosts(tmp.path())

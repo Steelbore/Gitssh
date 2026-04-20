@@ -194,7 +194,7 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
-    use crate::keygen::{KeyType, generate};
+    use crate::keygen::{generate, KeyType};
 
     fn roundtrip(kind: KeyType, hash: HashAlg) {
         let key = generate(kind, None, "sign@test").unwrap();
@@ -287,13 +287,7 @@ mod tests {
         let allowed_text = format!("carol@example.com,dave@example.com {pubkey_line}");
         let allowed = AllowedSigners::parse(&allowed_text).unwrap();
 
-        let armored = sign(
-            &mut Cursor::new(b"x"),
-            &key,
-            "git",
-            HashAlg::Sha512,
-        )
-        .unwrap();
+        let armored = sign(&mut Cursor::new(b"x"), &key, "git", HashAlg::Sha512).unwrap();
         let principals = find_principals(&armored, &allowed, "git").unwrap();
         assert!(principals.iter().any(|p| p == "carol@example.com"));
         assert!(principals.iter().any(|p| p == "dave@example.com"));

@@ -108,12 +108,12 @@ fn signal_number(sig: &Sig) -> u32 {
     // POSIX signal numbers used to compute OpenSSH-compatible exit codes.
     // A custom/unknown signal maps to 0 (no meaningful number available).
     match sig {
-        Sig::HUP  => 1,
-        Sig::INT  => 2,
+        Sig::HUP => 1,
+        Sig::INT => 2,
         Sig::QUIT => 3,
-        Sig::ILL  => 4,
+        Sig::ILL => 4,
         Sig::ABRT => 6,
-        Sig::FPE  => 8,
+        Sig::FPE => 8,
         Sig::KILL => 9,
         Sig::SEGV => 11,
         Sig::PIPE => 13,

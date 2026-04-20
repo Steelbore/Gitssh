@@ -44,10 +44,10 @@ use std::process::ExitCode;
 use ssh_key::{HashAlg, LineEnding, PrivateKey, PublicKey};
 use zeroize::Zeroizing;
 
-use gitway_lib::GitwayError;
 use gitway_lib::allowed_signers::AllowedSigners;
 use gitway_lib::keygen::{self, KeyType};
 use gitway_lib::sshsig;
+use gitway_lib::GitwayError;
 
 // ── Top-level dispatch ────────────────────────────────────────────────────────
 
@@ -191,7 +191,11 @@ impl Parsed {
                     sshsig_op = Some(take_value(args, &mut i, "-Y")?);
                 }
                 "--allowed-signers" => {
-                    p.allowed_signers = Some(PathBuf::from(take_value(args, &mut i, "--allowed-signers")?));
+                    p.allowed_signers = Some(PathBuf::from(take_value(
+                        args,
+                        &mut i,
+                        "--allowed-signers",
+                    )?));
                 }
                 "-O" => {
                     // Option pass-through used by `ssh-keygen -Y sign`: we
@@ -334,9 +338,11 @@ fn run_extract_public(p: &Parsed) -> Result<u32, GitwayError> {
     if key.is_encrypted() {
         let pp: Zeroizing<String> = match &p.old_passphrase {
             Some(s) => Zeroizing::new(s.clone()),
-            None => rpassword::prompt_password(format!("Enter passphrase for {}: ", file.display()))
-                .map(Zeroizing::new)
-                .map_err(GitwayError::from)?,
+            None => {
+                rpassword::prompt_password(format!("Enter passphrase for {}: ", file.display()))
+                    .map(Zeroizing::new)
+                    .map_err(GitwayError::from)?
+            }
         };
         key = key
             .decrypt(pp.as_bytes())
@@ -386,10 +392,14 @@ fn run_change_passphrase(p: &Parsed) -> Result<u32, GitwayError> {
 
 fn run_sign(p: &Parsed) -> Result<u32, GitwayError> {
     let Some(file) = p.file.clone() else {
-        return Err(GitwayError::invalid_config("-f FILE is required for -Y sign"));
+        return Err(GitwayError::invalid_config(
+            "-f FILE is required for -Y sign",
+        ));
     };
     let Some(ns) = p.namespace.clone() else {
-        return Err(GitwayError::invalid_config("-n NAMESPACE is required for -Y sign"));
+        return Err(GitwayError::invalid_config(
+            "-n NAMESPACE is required for -Y sign",
+        ));
     };
 
     // Git passes `user.signingkey` to `-f`, which is usually the `.pub`

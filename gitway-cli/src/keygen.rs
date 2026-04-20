@@ -14,16 +14,16 @@ use std::path::Path;
 use ssh_key::{HashAlg, PrivateKey, PublicKey};
 use zeroize::Zeroizing;
 
-use gitway_lib::GitwayError;
 use gitway_lib::allowed_signers::AllowedSigners;
 use gitway_lib::keygen::{self, KeyType};
 use gitway_lib::sshsig;
+use gitway_lib::GitwayError;
 
 use crate::cli::{
     ChangePassphraseArgs, ExtractPublicArgs, FingerprintArgs, GenerateArgs, HashKind, KeyAlg,
     KeygenSubcommand, VerifyArgs,
 };
-use crate::{OutputMode, emit_json, emit_json_line, now_iso8601, prompt_passphrase};
+use crate::{emit_json, emit_json_line, now_iso8601, prompt_passphrase, OutputMode};
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -167,10 +167,7 @@ fn run_extract_public(args: &ExtractPublicArgs, mode: OutputMode) -> Result<u32,
 
 // ── change-passphrase ─────────────────────────────────────────────────────────
 
-fn run_change_passphrase(
-    args: ChangePassphraseArgs,
-    mode: OutputMode,
-) -> Result<u32, GitwayError> {
+fn run_change_passphrase(args: ChangePassphraseArgs, mode: OutputMode) -> Result<u32, GitwayError> {
     let pem = fs::read_to_string(&args.file)?;
     let loaded = PrivateKey::from_openssh(&pem)
         .map_err(|e| GitwayError::invalid_config(format!("cannot parse private key: {e}")))?;

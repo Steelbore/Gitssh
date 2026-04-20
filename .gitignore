@@ -26,6 +26,8 @@ result-*
 
 # Exported conversation files (Claude Code /export output)
 2026-*.txt
+Chat.txt
+Chat-*.txt
 
 # Criterion benchmark output
 criterion/

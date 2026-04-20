@@ -110,6 +110,10 @@ struct Parsed {
     signature_file: Option<PathBuf>,
     allowed_signers: Option<PathBuf>,
     fingerprint_hash: HashAlg,
+    /// Positional file argument — the data file for `-Y sign`. Git's SSH
+    /// signing path uses this form: `ssh-keygen -Y sign -n git -f <key>
+    /// <messagefile>` and expects the signature at `<messagefile>.sig`.
+    message_file: Option<PathBuf>,
 }
 
 impl Parsed {
@@ -133,6 +137,7 @@ impl Parsed {
             signature_file: None,
             allowed_signers: None,
             fingerprint_hash: HashAlg::Sha256,
+            message_file: None,
         };
 
         let mut saw_list = false;
@@ -208,9 +213,13 @@ impl Parsed {
                     )));
                 }
                 _ => {
-                    // A bare positional — accept it as the input file for
-                    // `-Y sign` on some ssh-keygen releases.
-                    if p.file.is_none() {
+                    // Bare positional — the message file for `-Y sign`
+                    // (git's SSH signing path uses this form). If `-f`
+                    // is absent entirely, the positional seeds it as a
+                    // last-ditch input (older ssh-keygen releases).
+                    if p.message_file.is_none() {
+                        p.message_file = Some(PathBuf::from(a));
+                    } else if p.file.is_none() {
                         p.file = Some(PathBuf::from(a));
                     }
                     i += 1;
@@ -383,18 +392,46 @@ fn run_sign(p: &Parsed) -> Result<u32, GitwayError> {
         return Err(GitwayError::invalid_config("-n NAMESPACE is required for -Y sign"));
     };
 
-    let key = load_and_decrypt(&file, p.old_passphrase.as_deref())?;
-    let mut data = Vec::new();
-    io::stdin().read_to_end(&mut data)?;
+    // Git passes `user.signingkey` to `-f`, which is usually the `.pub`
+    // path. ssh-keygen(1) documents this: when the argument is a public
+    // key, the private counterpart is located by stripping `.pub`
+    // (agent-based signing is Phase 2 and not yet wired in).
+    let key_file = resolve_signing_key_path(&file)?;
+    let key = load_and_decrypt(&key_file, p.old_passphrase.as_deref())?;
+
+    // Two input modes — mirrors ssh-keygen(1):
+    //
+    //  (a) `ssh-keygen -Y sign -n git -f <key>` reads the message from
+    //      stdin and writes the armored signature to stdout.
+    //  (b) `ssh-keygen -Y sign -n git -f <key> <messagefile>` reads the
+    //      message from <messagefile> and writes the signature to
+    //      <messagefile>.sig (overwriting if present).
+    //
+    // Git's `sign_buffer_ssh` (gpg-interface.c) uses form (b).
+    let (data, sig_out): (Vec<u8>, Option<PathBuf>) = if let Some(msg) = p.message_file.clone() {
+        let bytes = fs::read(&msg)?;
+        let mut out = msg.as_os_str().to_owned();
+        out.push(".sig");
+        (bytes, Some(PathBuf::from(out)))
+    } else {
+        let mut bytes = Vec::new();
+        io::stdin().read_to_end(&mut bytes)?;
+        (bytes, None)
+    };
+
     let sig = ssh_key::SshSig::sign(&key, &ns, HashAlg::Sha512, &data)
         .map_err(|e| GitwayError::signing(format!("sshsig sign failed: {e}")))?;
     let armored = sig
         .to_pem(LineEnding::LF)
         .map_err(|e| GitwayError::signing(format!("armor failed: {e}")))?;
-    // ssh-keygen writes the armored signature to stdout. Keep bytes exact.
-    let mut out = io::stdout().lock();
-    out.write_all(armored.as_bytes())?;
-    out.flush()?;
+
+    if let Some(path) = sig_out {
+        fs::write(&path, armored.as_bytes())?;
+    } else {
+        let mut out = io::stdout().lock();
+        out.write_all(armored.as_bytes())?;
+        out.flush()?;
+    }
     Ok(0)
 }
 
@@ -495,6 +532,63 @@ fn load_public_key(path: &Path) -> Result<PublicKey, GitwayError> {
             "cannot parse key: {e}"
         ))),
     }
+}
+
+/// Resolves `path` to a private-key file path.
+///
+/// If `path` already points at a private key, it is returned unchanged.
+/// If `path` points at a `.pub` file (or any file that parses as a public
+/// key in OpenSSH format), the same path without the `.pub` suffix is
+/// returned — mirroring `ssh-keygen`'s behaviour when given a public key
+/// but no agent is available.
+///
+/// # Errors
+///
+/// Returns [`GitwayError::no_key_found`] if neither `path` nor its
+/// stripped-`.pub` counterpart exists, and [`GitwayError::invalid_config`]
+/// if the file is neither a private key nor a public key.
+fn resolve_signing_key_path(path: &Path) -> Result<PathBuf, GitwayError> {
+    let raw = match fs::read_to_string(path) {
+        Ok(r) => r,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Err(GitwayError::no_key_found());
+        }
+        Err(e) => return Err(GitwayError::from(e)),
+    };
+
+    // Private key? Use it directly.
+    if PrivateKey::from_openssh(&raw).is_ok() {
+        return Ok(path.to_owned());
+    }
+
+    // Public key? Look for the private key next to it by stripping
+    // `.pub` (ssh-keygen's convention).
+    if PublicKey::from_openssh(raw.trim()).is_ok() {
+        let as_str = path.as_os_str().to_string_lossy().into_owned();
+        if let Some(stripped) = as_str.strip_suffix(".pub") {
+            let candidate = PathBuf::from(stripped);
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+            return Err(GitwayError::invalid_config(format!(
+                "public-key path {} given for signing, but no private key \
+                 found at {}; load the key into an agent (phase 2) or \
+                 pass the private-key path directly",
+                path.display(),
+                candidate.display(),
+            )));
+        }
+        return Err(GitwayError::invalid_config(format!(
+            "public-key path {} given for signing, but does not end in \
+             `.pub`; cannot locate the matching private key",
+            path.display(),
+        )));
+    }
+
+    Err(GitwayError::invalid_config(format!(
+        "file {} is neither a private nor public OpenSSH key",
+        path.display(),
+    )))
 }
 
 fn load_and_decrypt(path: &Path, old_pp: Option<&str>) -> Result<PrivateKey, GitwayError> {

@@ -116,7 +116,7 @@ OpenSSH-free key generation and commit signing so `gpg.format=ssh` works without
 - [✓] Unit tests in each new lib module: sign/verify round-trip for Ed25519 and ECDSA P-256; keygen round-trip (encrypted + unencrypted, mode 0600 on Unix); `allowed_signers` glob/negation/namespace parsing.
 - [✓] `#[ignore]` the RSA SSHSIG test with a note — known `ssh-key` 0.6.7 sharp edge. Revisit when `ssh-key` 0.7 ships.
 - [✓] Live smoke test: `gitway-keygen -t ed25519 … && gitway-keygen -Y sign … | gitway-keygen -Y check-novalidate …` exits 0.
-- [ ] `tests/ssh_keygen_compat.rs` — integration test (gated on `GITWAY_INTEGRATION_TESTS=1`) that invokes the compiled `gitway-keygen` as a subprocess with git's literal argv and cross-checks against real `ssh-keygen` when available.
+- [✓] `gitway-cli/tests/ssh_keygen_compat.rs` — hermetic sign/verify roundtrip (runs by default), tampered-payload + namespace-mismatch rejection, plus `#[ignore]`'d cross-compat tests that invoke real `ssh-keygen -lf` and `ssh-keygen -Y check-novalidate` against Gitway-produced keys + signatures (cross-checked against OpenSSH 10.x on 2026-04-21 — all pass).
 - [ ] Real GitHub signed-commit end-to-end: `gh api user/ssh_signing_keys` → `git -c gpg.ssh.program=./target/release/gitway-keygen commit -S` → assert `commit.verification.verified == true`.
 
 ### Documentation
@@ -127,10 +127,11 @@ OpenSSH-free key generation and commit signing so `gpg.format=ssh` works without
 
 ### CI & release
 
-- [ ] Extend release workflow to build and publish the `gitway-keygen` binary alongside `gitway` for all three platforms.
-- [ ] Update Debian / RPM packaging to include `gitway-keygen`.
-- [ ] Update AUR PKGBUILD similarly.
-- [ ] Cut v0.4.0 tag once the integration test + real GitHub round-trip are green.
+- [✓] Extend release workflow to build and publish the `gitway-keygen` binary alongside `gitway` for all three platforms (single `cargo build --release -p gitway` pulls both targets; archives bundle both bins + README + LICENSE).
+- [✓] Update Debian / RPM packaging to include `gitway-keygen` (new asset line in `package.metadata.deb` and `package.metadata.generate-rpm`).
+- [✓] Update AUR PKGBUILD (`-bin` and `-git`) to install `gitway-keygen` into `/usr/bin/`.
+- [✓] Fix stale `dtolnot/rust-toolchain` typo in `release.yml` rpm job (was `dtolnay`).
+- [ ] Cut v0.4.0 tag once the real-GitHub round-trip is green.
 
 ## Milestone 12: SSH agent client — Phase 2 of §5.7 (v0.5)
 

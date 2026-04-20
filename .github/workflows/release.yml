@@ -42,22 +42,25 @@ jobs:
       matrix:
         include:
           # Linux — fully static musl binary.
-          - target:  x86_64-unknown-linux-musl
-            runner:  ubuntu-latest
-            binary:  gitway
-            archive: gitway-${{ github.ref_name }}-linux-x86_64.tar.gz
+          - target:   x86_64-unknown-linux-musl
+            runner:   ubuntu-latest
+            binary:   gitway
+            binary2:  gitway-keygen
+            archive:  gitway-${{ github.ref_name }}-linux-x86_64.tar.gz
 
           # macOS — Apple Silicon (arm64).
-          - target:  aarch64-apple-darwin
-            runner:  macos-latest
-            binary:  gitway
-            archive: gitway-${{ github.ref_name }}-macos-arm64.tar.gz
+          - target:   aarch64-apple-darwin
+            runner:   macos-latest
+            binary:   gitway
+            binary2:  gitway-keygen
+            archive:  gitway-${{ github.ref_name }}-macos-arm64.tar.gz
 
           # Windows — MSVC toolchain.
-          - target:  x86_64-pc-windows-msvc
-            runner:  windows-latest
-            binary:  gitway.exe
-            archive: gitway-${{ github.ref_name }}-windows-x86_64.zip
+          - target:   x86_64-pc-windows-msvc
+            runner:   windows-latest
+            binary:   gitway.exe
+            binary2:  gitway-keygen.exe
+            archive:  gitway-${{ github.ref_name }}-windows-x86_64.zip
 
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +91,9 @@ jobs:
           key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-release-
 
-      - name: Build release binary
+      # `-p gitway` builds both [[bin]] targets in gitway-cli (gitway and
+      # gitway-keygen) in one cargo invocation since they share codegen.
+      - name: Build release binaries
         run: cargo build --release --target ${{ matrix.target }} -p gitway
 
       # ── Package ─────────────────────────────────────────────────────────────
@@ -96,16 +101,20 @@ jobs:
       - name: Package (Linux / macOS)
         if: runner.os != 'Windows'
         run: |
-          cp target/${{ matrix.target }}/release/${{ matrix.binary }} .
-          tar -czf ${{ matrix.archive }} ${{ matrix.binary }} README.md LICENSE
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }}  .
+          cp target/${{ matrix.target }}/release/${{ matrix.binary2 }} .
+          tar -czf ${{ matrix.archive }} \
+            ${{ matrix.binary }} ${{ matrix.binary2 }} README.md LICENSE
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Copy-Item "target\${{ matrix.target }}\release\${{ matrix.binary }}" .
-          Compress-Archive -Path ${{ matrix.binary }},README.md,LICENSE `
-                           -DestinationPath ${{ matrix.archive }}
+          Copy-Item "target\${{ matrix.target }}\release\${{ matrix.binary }}"  .
+          Copy-Item "target\${{ matrix.target }}\release\${{ matrix.binary2 }}" .
+          Compress-Archive `
+            -Path ${{ matrix.binary }},${{ matrix.binary2 }},README.md,LICENSE `
+            -DestinationPath ${{ matrix.archive }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -163,7 +172,7 @@ jobs:
           submodules: recursive
 
       - name: Install Rust stable
-        uses: dtolnot/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry
         uses: actions/cache@v4

@@ -30,6 +30,8 @@ pkgver() {
 build() {
   cd "${srcdir}/${pkgname}"
   # Suppress NixOS-style RUSTFLAGS that may be inherited in unusual environments.
+  # `-p gitway` builds both [[bin]] targets (gitway + gitway-keygen) from the
+  # gitway-cli crate since they share codegen.
   RUSTFLAGS="" cargo build --release -p gitway
 }
 
@@ -41,7 +43,8 @@ check() {
 package() {
   cd "${srcdir}/${pkgname}"
 
-  install -Dm755 target/release/gitway  "${pkgdir}/usr/bin/gitway"
-  install -Dm644 README.md              "${pkgdir}/usr/share/doc/${pkgname}/README.md"
-  install -Dm644 LICENSE                "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm755 target/release/gitway         "${pkgdir}/usr/bin/gitway"
+  install -Dm755 target/release/gitway-keygen  "${pkgdir}/usr/bin/gitway-keygen"
+  install -Dm644 README.md                     "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  install -Dm644 LICENSE                       "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 }

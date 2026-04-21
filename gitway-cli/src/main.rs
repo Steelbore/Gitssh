@@ -222,7 +222,7 @@ async fn run(cli: Cli) -> Result<u32, GitwayError> {
             GitwaySubcommand::Keygen(args) => keygen::run(args.command, mode),
             GitwaySubcommand::Sign(args) => sign::run(&args, mode),
             #[cfg(unix)]
-            GitwaySubcommand::Agent(args) => agent::run(args.command, mode),
+            GitwaySubcommand::Agent(args) => agent::run(args.command, mode).await,
         };
     }
 

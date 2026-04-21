@@ -175,32 +175,49 @@ Complete OpenSSH replacement — Gitway ships its own long-lived agent daemon. C
 
 ### Dependencies
 
-- [ ] Flip `ssh-agent-lib` to include `server` feature in addition to `client`.
-- [ ] Add `nix` (pure-Rust) for fork/setsid/umask/signal handling on Unix.
+- [✓] Re-enable ssh-agent-lib default features (`agent` group: `Session` trait, `listen`, named-pipe listener). Blocking client side keeps compiling.
+- [✓] Add `nix` 0.29 (pure-Rust) for signal/kill/pid handling. fork/setsid are not needed in v0.6 since only foreground mode ships.
+- [✓] Add direct `ed25519-dalek` 2 for the daemon's Ed25519 sign path.
 
 ### `gitway-lib` — agent daemon
 
-- [ ] `gitway-lib/src/agent/daemon.rs` — implements `ssh_agent_lib::agent::Session` trait backed by an in-memory `HashMap<Fingerprint, LoadedKey>` where `LoadedKey` wraps `ssh_key::PrivateKey` with `Zeroizing`-safe storage and an optional expiry instant.
-- [ ] Per-key TTL enforced via tokio timers.
-- [ ] SIGTERM/SIGINT handlers: unlink socket, remove pid file, zero every stored key.
-- [ ] Unix socket permissions: 0600 mode inside a 0700 parent dir at `$XDG_RUNTIME_DIR/gitway-agent.$PID.sock`.
-- [ ] Windows named-pipe transport (`\\.\pipe\openssh-ssh-agent`-compatible name).
+- [✓] `gitway-lib/src/agent/daemon.rs` — implements `ssh_agent_lib::agent::Session` backed by an in-memory `HashMap<Fingerprint, StoredKey>`; `ssh_key::PrivateKey` zeroizes on drop. Supports `request_identities`, `add_identity`, `add_identity_constrained`, `remove_identity`, `remove_all_identities`, `sign`, `lock`, `unlock`.
+- [✓] Per-key TTL via a 1-second tokio `interval` sweep, plus `AddIdentityConstrained { Lifetime }` honored per add.
+- [✓] SIGTERM/SIGINT handlers via `tokio::signal`: unlink socket, remove pid file, zero keys via `Drop`.
+- [✓] Unix socket permissions: 0600 on the socket inode. Parent directory defaults to `$XDG_RUNTIME_DIR` (already user-private) or a 0700 `$TMPDIR/gitway-agent-<user>/` fallback.
+- [ ] Windows named-pipe transport — deferred. On Windows `gitway agent start` returns a clear error (v0.6.x follow-up).
+
+### Sign algorithm coverage
+
+- [✓] Ed25519 sign: full round-trip — real OpenSSH `ssh-keygen -Y sign` produces a valid SSHSIG against the Gitway agent (validated 2026-04-21 during development).
+- [ ] ECDSA P-256 / P-384 / P-521 sign: returns `AgentError::Failure` with a logged warning (v0.6.x follow-up).
+- [ ] RSA sign: same posture — add/list/remove work but sign is rejected (v0.6.x follow-up).
 
 ### `gitway` CLI
 
-- [ ] Extend `AgentSubcommand` with `Start(AgentStartArgs)` + `Stop`.
-- [ ] `-D` foreground mode (no daemonization) for systemd / launchd.
-- [ ] `-s` / `-c` eval-output selection, auto-detect from `$SHELL`.
-- [ ] `gitway agent stop` locates the daemon via `$SSH_AGENT_PID` or pid file.
+- [✓] Extend `AgentSubcommand` with `Start(AgentStartArgs)` + `Stop(AgentStopArgs)`.
+- [✓] `-D` foreground mode (the only mode in v0.6; users background with the shell or systemd).
+- [✓] `-s` / `-c` eval-output selection, auto-detect from `$SHELL`.
+- [✓] `gitway agent stop` locates the daemon via `$SSH_AGENT_PID` or pid file and sends SIGTERM.
+- [✓] `agent::run` became async so the daemon drives the outer `#[tokio::main]` runtime directly (nesting a new runtime panics).
 
 ### Tests
 
-- [ ] `tests/agent_daemon.rs` (gated) — spawn `gitway agent start -D -a <tmp>`, drive `gitway agent add/list/remove` against it, assert socket teardown on `stop`. Skip on Windows.
-- [ ] Lifetime test: `add` with `-t 2`, sleep 3s, `list` is empty.
-- [ ] Transport integration: `eval $(gitway agent start -s) && gitway-add <key> && git push …` authenticates with zero prompts.
+- [✓] `gitway-cli/tests/agent_daemon.rs` — hermetic (no OpenSSH required): spawns `gitway agent start -D -s -a <tmp>`, drives `gitway-add` through add → list → remove → empty, asserts socket teardown on SIGTERM.
+- [✓] Lifetime test: `add -t 1`, sleep 2.5s, `list` returns empty (exit 1).
+- [ ] Transport integration (`eval $(gitway agent start -s) && git push …`) — left as a manual post-release check; phase-2 tests already cover agent auth through `gitway`'s transport.
 
 ### Documentation & release
 
-- [ ] README: "Running a Gitway agent instead of ssh-agent" section, incl. the `eval $(gitway agent start -s)` recipe and Windows caveat.
-- [ ] Optional `packaging/systemd/gitway-agent.service` user unit (no system install).
-- [ ] Cut v0.6.0 tag.
+- [✓] README: new "Running a Gitway-native SSH agent" section covering the `eval $(gitway agent start -D -s)` recipe and the v0.6 sign-algorithm caveat.
+- [ ] Optional `packaging/systemd/gitway-agent.service` user unit — deferred to v0.6.x.
+- [ ] Cut v0.6.0 tag after CI goes green on the Phase 3 commit.
+
+### v0.6.x follow-up punch list
+
+- [ ] ECDSA sign (P-256, P-384, P-521).
+- [ ] RSA sign (`rsa::pkcs1v15::SigningKey` driven by the client's `rsa-sha2-256` / `rsa-sha2-512` flag).
+- [ ] Double-fork + setsid background daemonization.
+- [ ] Windows named-pipe transport for both daemon and client.
+- [ ] Interactive `--confirm` flow (needs an SSH_ASKPASS-style side channel).
+- [ ] `systemd` user unit for one-command install (`systemctl --user enable gitway-agent`).

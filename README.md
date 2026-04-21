@@ -304,10 +304,56 @@ flags most-commonly used: `-l`, `-L`, `-d <file>`, `-D`, `-x`, `-X`,
 `add`.
 
 ```sh
-eval $(ssh-agent -s)       # or Gitway's own daemon once v0.6 lands
+eval $(ssh-agent -s)       # or `eval $(gitway agent start -D -s)` for the Gitway-native daemon
 gitway-add ~/.ssh/id_ed25519
 gitway-add -l
 ```
+
+---
+
+## Running a Gitway-native SSH agent (no OpenSSH required)
+
+Gitway 0.6 ships an SSH agent daemon of its own. It speaks the standard
+SSH agent wire protocol, so every SSH client — including real OpenSSH —
+can use it as a transparent stand-in for `ssh-agent`. Unix-only;
+Windows named-pipe transport is a follow-up within the v0.6.x series.
+
+### Starting the daemon
+
+```sh
+# Launch it in the foreground and export its socket + PID into the shell:
+eval $(gitway agent start -D -s)
+
+# Now any client — gitway-add, ssh-add, ssh-keygen -Y sign — uses it:
+gitway-add ~/.ssh/id_ed25519
+ssh-add -l                    # OpenSSH's ssh-add talks to the Gitway agent
+```
+
+`-D` runs in the foreground (background daemonization lands in a
+follow-up patch; for now, background it with `&`, `setsid nohup`, or a
+systemd user unit). `-s` emits Bourne-shell `export` lines; `-c`
+emits csh/fish `setenv` lines. With neither flag, Gitway picks based
+on `$SHELL`.
+
+`-t <seconds>` sets a default lifetime — after that duration, the agent
+silently evicts the key. Individual `gitway agent add -t <sec>`
+requests override the daemon-wide default.
+
+### Stopping it
+
+```sh
+gitway agent stop                       # reads $SSH_AGENT_PID or the pid file
+```
+
+### Scope in v0.6
+
+- **Fully supported**: Ed25519 sign operations. Round-trip works with
+  OpenSSH's `ssh-add`, `ssh-keygen -Y sign`, and `ssh` transport.
+- **Partial**: ECDSA and RSA add/list/remove work; sign requests for
+  those algorithms return a protocol failure with a warning logged.
+  Per-algorithm sign support lands in v0.6.x.
+- **Deferred**: Windows named pipes. On Windows, keep using Windows
+  OpenSSH's agent and `gitway-keygen` for signing.
 
 ---
 
@@ -317,7 +363,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-gitway-lib = "0.5.0"
+gitway-lib = "0.6.0"
 ```
 
 ### Connect and run a Git command

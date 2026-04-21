@@ -256,6 +256,10 @@ pub enum AgentSubcommand {
     Lock(AgentLockArgs),
     /// Unlock a previously-locked agent.
     Unlock(AgentLockArgs),
+    /// Start a long-lived Gitway-native SSH agent (Phase 3).
+    Start(AgentStartArgs),
+    /// Stop the running Gitway agent located via `$SSH_AGENT_PID` or a pid file.
+    Stop(AgentStopArgs),
 }
 
 /// Arguments for `gitway agent add`.
@@ -312,6 +316,51 @@ pub struct AgentLockArgs {
     /// Passphrase (prompted interactively if omitted).
     #[arg(short = 'p', long = "passphrase", value_name = "PASSPHRASE")]
     pub passphrase: Option<String>,
+}
+
+/// Arguments for `gitway agent start`.
+#[cfg(unix)]
+#[derive(Debug, Args)]
+pub struct AgentStartArgs {
+    /// Override the socket path. Defaults to
+    /// `$XDG_RUNTIME_DIR/gitway-agent.$PID.sock` (falling back to
+    /// `$TMPDIR/gitway-agent-<user>/agent.$PID`).
+    #[arg(short = 'a', long = "sock", value_name = "PATH")]
+    pub sock: Option<PathBuf>,
+
+    /// Default per-key lifetime in seconds. Individual
+    /// `gitway agent add -t <sec>` requests override this.
+    #[arg(short = 't', long = "default-ttl", value_name = "SECONDS")]
+    pub default_ttl: Option<u64>,
+
+    /// Optional pid-file location. Defaults to the runtime-dir
+    /// `gitway-agent.pid` next to the socket.
+    #[arg(long = "pid-file", value_name = "PATH")]
+    pub pid_file: Option<PathBuf>,
+
+    /// Do not daemonize — stay in the foreground, keep stdout/stderr
+    /// attached. Matches `ssh-agent -D`, which is the only mode
+    /// supported in v0.6; proper double-fork daemonization lands in a
+    /// follow-up (v0.6.x).
+    #[arg(short = 'D', long = "foreground", action = ArgAction::SetTrue)]
+    pub foreground: bool,
+
+    /// Force Bourne-compatible eval output (`SSH_AUTH_SOCK=...; export …`).
+    #[arg(short = 's', long = "sh", action = ArgAction::SetTrue, conflicts_with = "csh")]
+    pub sh: bool,
+
+    /// Force csh/fish eval output (`setenv SSH_AUTH_SOCK ...`).
+    #[arg(short = 'c', long = "csh", action = ArgAction::SetTrue, conflicts_with = "sh")]
+    pub csh: bool,
+}
+
+/// Arguments for `gitway agent stop`.
+#[cfg(unix)]
+#[derive(Debug, Args)]
+pub struct AgentStopArgs {
+    /// Pid file to read (default: the agent's advertised location).
+    #[arg(long = "pid-file", value_name = "PATH")]
+    pub pid_file: Option<PathBuf>,
 }
 
 // ── Main CLI struct ───────────────────────────────────────────────────────────

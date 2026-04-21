@@ -21,20 +21,34 @@ use gitway_lib::keygen::fingerprint;
 use gitway_lib::GitwayError;
 
 use crate::cli::{
-    AgentAddArgs, AgentListArgs, AgentLockArgs, AgentRemoveArgs, AgentSubcommand, HashKind,
+    AgentAddArgs, AgentListArgs, AgentLockArgs, AgentRemoveArgs, AgentStartArgs, AgentStopArgs,
+    AgentSubcommand, HashKind,
 };
 use crate::{emit_json, emit_json_line, now_iso8601, prompt_passphrase, OutputMode};
+
+use gitway_lib::agent::daemon::{self, AgentDaemonConfig};
+
+// Imports needed by `run_stop`, declared at module scope so clippy's
+// items-after-statements lint stays happy.
+use nix::sys::signal::{kill, Signal};
+use nix::unistd::Pid;
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 /// Dispatches one `gitway agent <sub>` invocation.
-pub fn run(sub: AgentSubcommand, mode: OutputMode) -> Result<u32, GitwayError> {
+///
+/// Async to let the `Start` arm drive the agent daemon's accept loop on
+/// the outer `#[tokio::main]` runtime; the other arms are sync and run
+/// to completion before returning.
+pub async fn run(sub: AgentSubcommand, mode: OutputMode) -> Result<u32, GitwayError> {
     match sub {
         AgentSubcommand::Add(args) => run_add(&args, mode),
         AgentSubcommand::List(args) => run_list(&args, mode),
         AgentSubcommand::Remove(args) => run_remove(&args, mode),
         AgentSubcommand::Lock(args) => run_lock(&args, mode, /* lock = */ true),
         AgentSubcommand::Unlock(args) => run_lock(&args, mode, /* lock = */ false),
+        AgentSubcommand::Start(args) => run_start(&args, mode).await,
+        AgentSubcommand::Stop(args) => run_stop(&args, mode),
     }
 }
 
@@ -291,4 +305,134 @@ fn hashkind_to_sshkey(k: HashKind) -> HashAlg {
         HashKind::Sha256 => HashAlg::Sha256,
         HashKind::Sha512 => HashAlg::Sha512,
     }
+}
+
+// ── start / stop ──────────────────────────────────────────────────────────────
+
+async fn run_start(args: &AgentStartArgs, _mode: OutputMode) -> Result<u32, GitwayError> {
+    if !args.foreground {
+        return Err(GitwayError::invalid_config(
+            "v0.6 only supports foreground mode (`-D`); background \
+             daemonization lands in a follow-up. Run `gitway agent \
+             start -D` and background it with your shell or systemd.",
+        ));
+    }
+    let socket_path = args.sock.clone().unwrap_or_else(default_socket_path);
+    let pid_file = args
+        .pid_file
+        .clone()
+        .or_else(|| default_pid_path(&socket_path));
+    let default_ttl = args.default_ttl.map(Duration::from_secs);
+    let cfg = AgentDaemonConfig {
+        socket_path: socket_path.clone(),
+        pid_file: pid_file.clone(),
+        default_ttl,
+    };
+
+    emit_eval(&socket_path, std::process::id(), args.sh, args.csh);
+
+    // Drive the daemon on the outer `#[tokio::main]` runtime — nesting
+    // `runtime::block_on` inside an already-running runtime panics, so
+    // `.await`-ing here is the only correct option.
+    daemon::run(cfg).await?;
+    Ok(0)
+}
+
+fn run_stop(args: &AgentStopArgs, mode: OutputMode) -> Result<u32, GitwayError> {
+    let pid = resolve_daemon_pid(args.pid_file.as_deref())?;
+    // SIGTERM for graceful shutdown; the daemon unlinks the socket and
+    // pid file in its drop path.
+    kill(Pid::from_raw(pid), Signal::SIGTERM)
+        .map_err(|e| GitwayError::invalid_config(format!("failed to signal pid {pid}: {e}")))?;
+
+    match mode {
+        OutputMode::Json => {
+            emit_json(&serde_json::json!({
+                "metadata": {
+                    "tool": "gitway",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "command": "gitway agent stop",
+                    "timestamp": now_iso8601(),
+                },
+                "data": { "signalled_pid": pid }
+            }));
+        }
+        OutputMode::Human => {
+            eprintln!("gitway: SIGTERM sent to pid {pid}");
+        }
+    }
+    Ok(0)
+}
+
+fn resolve_daemon_pid(cli_pid_file: Option<&Path>) -> Result<i32, GitwayError> {
+    if let Ok(s) = std::env::var("SSH_AGENT_PID") {
+        return s.trim().parse().map_err(|_e: std::num::ParseIntError| {
+            GitwayError::invalid_config(format!("SSH_AGENT_PID is not an integer: {s:?}"))
+        });
+    }
+    let path = cli_pid_file
+        .map(Path::to_owned)
+        .or_else(|| default_pid_path(&default_socket_path()))
+        .ok_or_else(|| {
+            GitwayError::invalid_config(
+                "no running agent to stop: neither SSH_AGENT_PID nor a \
+                 pid file are available",
+            )
+        })?;
+    let contents = fs::read_to_string(&path)?;
+    contents
+        .trim()
+        .parse::<i32>()
+        .map_err(|_e: std::num::ParseIntError| {
+            GitwayError::invalid_config(format!(
+                "pid file {} does not contain a valid integer",
+                path.display()
+            ))
+        })
+}
+
+/// Emits `ssh-agent -s` / `-c` compatible shell eval lines to stdout.
+fn emit_eval(socket_path: &Path, pid: u32, bourne: bool, csh_forced: bool) {
+    let csh = csh_forced
+        || (!bourne
+            && std::env::var("SHELL")
+                .ok()
+                .as_deref()
+                .is_some_and(|sh| sh.ends_with("csh") || sh.ends_with("tcsh")));
+    if csh {
+        println!("setenv SSH_AUTH_SOCK {};", socket_path.display());
+        println!("setenv SSH_AGENT_PID {pid};");
+        println!("echo Agent pid {pid};");
+    } else {
+        println!(
+            "SSH_AUTH_SOCK={}; export SSH_AUTH_SOCK;",
+            socket_path.display()
+        );
+        println!("SSH_AGENT_PID={pid}; export SSH_AGENT_PID;");
+        println!("echo Agent pid {pid};");
+    }
+}
+
+/// Default socket location: `$XDG_RUNTIME_DIR/gitway-agent.<PID>.sock`
+/// when the runtime dir is set, otherwise `$TMPDIR/gitway-agent-<user>/
+/// agent.<PID>`.
+fn default_socket_path() -> std::path::PathBuf {
+    let pid = std::process::id();
+    if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
+        return std::path::PathBuf::from(runtime).join(format!("gitway-agent.{pid}.sock"));
+    }
+    let tmp = std::env::var("TMPDIR").unwrap_or_else(|_e| "/tmp".to_owned());
+    let user = std::env::var("USER").unwrap_or_else(|_e| "default".to_owned());
+    let parent = std::path::PathBuf::from(tmp).join(format!("gitway-agent-{user}"));
+    let _ = fs::create_dir_all(&parent);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let _ = fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o700));
+    }
+    parent.join(format!("agent.{pid}"))
+}
+
+fn default_pid_path(socket_path: &Path) -> Option<std::path::PathBuf> {
+    socket_path.parent().map(|p| p.join("gitway-agent.pid"))
 }

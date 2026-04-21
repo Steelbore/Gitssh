@@ -30,11 +30,15 @@ ssh-key.workspace   = true
 sha2.workspace      = true
 rand_core.workspace = true
 
-# SSH agent wire-protocol client (phase 2: `gitway agent`, `gitway-add`).
-# Only the blocking API is pulled in; Unix-only for now (Windows named-pipe
-# support is Phase 3 scope).
+# SSH agent wire-protocol client + server (phase 2 client, phase 3 daemon).
+# Unix-only wire-format path for now; Windows named-pipe support is
+# phase 3 stretch goal.
 [target.'cfg(unix)'.dependencies]
 ssh-agent-lib.workspace = true
+nix.workspace           = true
+ed25519-dalek.workspace = true
+async-trait             = "0.1"
+futures                 = "0.3"
 
 [dev-dependencies]
 tokio     = { workspace = true }

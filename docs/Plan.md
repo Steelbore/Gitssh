@@ -1,7 +1,7 @@
 # Gitway — Project Plan
 
 **Maintainer:** [Mohamed Hammad](mailto:MJ@S3cure.me)
-**Status:** v0.6.0 shipped (2026-04-21). OpenSSH-replacement plan complete; v0.6.x follow-ups in flight.
+**Status:** v0.6.0 shipped (2026-04-21); v0.6.1 follow-ups complete (2026-04-22). The OpenSSH-replacement plan including all v0.6.x follow-ups is done.
 
 ---
 
@@ -89,12 +89,12 @@ driving via the transport's `#[tokio::main]`.
 | v0.4.0  | 2026-04-21 | §5.7 Phase 1 — `gitway keygen`, `gitway sign`, `gitway-keygen` shim. Validated against GitHub (`verified: true`). |
 | v0.5.0  | 2026-04-21 | §5.7 Phase 2 — `gitway agent add/list/remove/lock/unlock` + `gitway-add` shim. |
 | v0.6.0  | 2026-04-21 | §5.7 Phase 3 — `gitway agent start/stop` daemon with Ed25519 sign, TTL eviction, SIGTERM shutdown. Real OpenSSH verifies Gitway-produced signatures. |
+| v0.6.1  | 2026-04-22 | v0.6.x follow-ups — ECDSA/RSA daemon sign, background double-fork daemonization, hardened systemd user unit, interactive `--confirm` via `$SSH_ASKPASS`, and Windows named-pipe transport for both client and daemon. |
 
 ## 5. v0.6.x follow-up work
 
-Tracked as unchecked items under Milestone 13 in `docs/TODO.md`:
-
-- Windows named-pipe transport for client and daemon
+Tracked as checked items under Milestone 13 in `docs/TODO.md`. Everything in
+the original v0.6.x punch list has shipped; any further work moves into v0.7+.
 
 ## 6. Design decisions and rationale
 

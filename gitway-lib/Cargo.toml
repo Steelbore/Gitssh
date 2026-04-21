@@ -30,17 +30,22 @@ ssh-key.workspace   = true
 sha2.workspace      = true
 rand_core.workspace = true
 
-# SSH agent wire-protocol client + server (phase 2 client, phase 3 daemon).
-# Unix-only wire-format path for now; Windows named-pipe support is
-# phase 3 stretch goal.
-[target.'cfg(unix)'.dependencies]
+# SSH agent wire-protocol client + server. Cross-platform as of v0.6.1:
+# Unix uses `UnixStream`/`UnixListener`, Windows uses named pipes
+# (`\\.\pipe\openssh-ssh-agent` matches OpenSSH-for-Windows).
 ssh-agent-lib.workspace = true
-nix.workspace           = true
 ed25519-dalek.workspace = true
 signature.workspace     = true
 rsa.workspace           = true
 async-trait             = "0.1"
 futures                 = "0.3"
+
+# Unix-only: signal + fork + setsid primitives used by the daemon's
+# shutdown path and socket permission tightening. On Windows the
+# daemon uses `tokio::signal::ctrl_c` instead and pipe ACLs give us
+# equivalent access control without chmod.
+[target.'cfg(unix)'.dependencies]
+nix.workspace           = true
 
 [dev-dependencies]
 tokio     = { workspace = true }

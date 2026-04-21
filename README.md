@@ -399,8 +399,13 @@ thing for GUI askpass binaries.
   SHA-1 `ssh-rsa` wire algorithm is rejected; OpenSSH 8.2+ and every
   modern Git host request SHA-2 by default, so this only matters if
   you explicitly re-enable SHA-1 in your client config.
-- **Deferred**: Windows named pipes. On Windows, keep using Windows
-  OpenSSH's agent and `gitway-keygen` for signing.
+- **Windows**: the agent client and daemon both speak over named pipes
+  (`\\.\pipe\gitway-agent.<PID>` by default, compatible with OpenSSH
+  for Windows's `\\.\pipe\openssh-ssh-agent`). `gitway agent start -D`
+  runs a foreground daemon; Ctrl+C triggers graceful shutdown. Background
+  mode (no `-D`) and `gitway agent stop` are Unix-only — use
+  `start /B`, `Stop-Process`, Task Manager, or a Windows service
+  wrapper instead.
 
 ---
 

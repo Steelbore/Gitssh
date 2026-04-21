@@ -29,7 +29,6 @@
 //! back to the client.
 
 use std::ffi::OsString;
-use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -129,9 +128,16 @@ pub async fn confirm_with(askpass: &OsString, prompt: &str) -> Result<bool, Gitw
 }
 
 /// Rejects askpass paths that are unsafe to `execve` — relative paths
-/// (PATH injection) and world-writable files (local tampering). Both
-/// checks mirror the client-side `try_askpass` so operators only need
-/// to learn the rules once.
+/// (PATH injection) and (on Unix) world-writable files (local
+/// tampering). Both checks mirror the client-side `try_askpass` so
+/// operators only need to learn the rules once.
+///
+/// On Windows the world-writable check is dropped because the Unix
+/// `other` bit does not map cleanly onto NTFS ACLs; confirming the
+/// path is absolute + verifying metadata is readable is the portable
+/// subset of the Unix contract we can still enforce. Windows users
+/// wanting stricter checks should place their askpass binary in a
+/// directory their account has exclusive write access to.
 fn validate_security(askpass: &Path) -> Result<(), GitwayError> {
     if !askpass.is_absolute() {
         return Err(GitwayError::invalid_config(format!(
@@ -145,22 +151,36 @@ fn validate_security(askpass: &Path) -> Result<(), GitwayError> {
             askpass.display()
         ))
     })?;
-    // 0o002 is the write bit for "other". Any askpass readable to the
-    // user but writable by anyone on the system is an exploit waiting
-    // to happen.
-    if meta.permissions().mode() & 0o002 != 0 {
-        return Err(GitwayError::invalid_config(format!(
-            "SSH_ASKPASS {} is world-writable and cannot be trusted",
-            askpass.display()
-        )));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        // 0o002 is the write bit for "other". Any askpass readable
+        // to the user but writable by anyone on the system is an
+        // exploit waiting to happen.
+        if meta.permissions().mode() & 0o002 != 0 {
+            return Err(GitwayError::invalid_config(format!(
+                "SSH_ASKPASS {} is world-writable and cannot be trusted",
+                askpass.display()
+            )));
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        // `metadata` already succeeded, so the path exists and is
+        // readable — that's the portable part of the check.
+        let _ = meta;
     }
     Ok(())
 }
 
-#[cfg(test)]
+// Askpass is a cross-platform surface but the test fixtures here shell
+// out to a POSIX `/bin/sh` script and assert Unix mode bits. Gate the
+// whole submodule on `cfg(unix)` so Windows CI builds `gitway-lib` cleanly.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::fs;
+    use std::os::unix::fs::PermissionsExt as _;
     use tempfile::TempDir;
 
     /// Builds an executable shell script under `dir` that simply

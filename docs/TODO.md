@@ -186,7 +186,7 @@ Complete OpenSSH replacement — Gitway ships its own long-lived agent daemon. C
 - [✓] SIGTERM/SIGINT handlers via `tokio::signal`: unlink socket, remove pid file, zero keys via `Drop`.
 - [✓] Unix socket permissions: 0600 on the socket inode. Parent directory defaults to `$XDG_RUNTIME_DIR` (already user-private) or a 0700 `$TMPDIR/gitway-agent-<user>/` fallback.
 - [✓] Background double-fork daemonization landed 2026-04-22: `gitway agent start` without `-D` respawns itself as a detached child (Command::spawn + setsid in the child via `GITWAY_AGENT_DAEMONIZED` env marker), prints eval lines with the child's PID to stdout, then exits. Avoids `unsafe` entirely — no `pre_exec`. Test coverage: `daemon_background_mode_detaches_and_advertises_pid` asserts ppid=1 after detach; `daemon_background_mode_rejects_existing_socket` catches the "already running" race.
-- [ ] Windows named-pipe transport — deferred. On Windows `gitway agent start` returns a clear error (v0.6.x follow-up).
+- [✓] Windows named-pipe transport — landed 2026-04-22 (v0.6.1). Client opens `$SSH_AUTH_SOCK` as a named-pipe file handle (`std::fs::OpenOptions`), interoperable with OpenSSH-for-Windows's `\\.\pipe\openssh-ssh-agent`. Daemon binds via `ssh_agent_lib::agent::NamedPipeListener` and races the accept loop against `Ctrl+C`. Background mode (`-setsid`-style detach) and `gitway agent stop` remain Unix-only and return a clear error on Windows directing users to `start /B`, `Stop-Process`, or a Windows service harness.
 
 ### Sign algorithm coverage
 
@@ -222,4 +222,5 @@ Complete OpenSSH replacement — Gitway ships its own long-lived agent daemon. C
 - [✓] Interactive `--confirm` flow — landed 2026-04-22. New `gitway_lib::agent::askpass` module drives a user-chosen askpass binary via `$SSH_ASKPASS` + `SSH_ASKPASS_PROMPT=confirm`, with a 60s timeout, absolute-path + non-world-writable security gates matching the client-side `try_askpass`, and fail-safe denial on any error. The daemon releases the keystore lock around the askpass round-trip so other clients are not blocked. Tests: 5 unit (approve / deny / relative-path rejection / world-writable rejection / missing-file error) + 3 end-to-end (full agent-protocol sign request with a scripted askpass script: approve, deny, and `SSH_ASKPASS` unset).
 - [ ] Windows named-pipe transport for both daemon and client.
 - [✓] Interactive `--confirm` flow via `$SSH_ASKPASS` — landed 2026-04-22 at `gitway_lib::agent::askpass`.
+- [✓] Windows named-pipe transport — landed 2026-04-22. Client uses `std::fs::File` over `\\.\pipe\<name>`, daemon uses `ssh_agent_lib::agent::NamedPipeListener` + Ctrl+C shutdown.
 - [✓] `systemd` user unit for one-command install (`systemctl --user enable gitway-agent`) — landed 2026-04-22 at `packaging/systemd/gitway-agent.service`.

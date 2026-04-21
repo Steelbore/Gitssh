@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Rust guideline compliant 2026-04-21
+// Rust guideline compliant 2026-03-30
 //! Blocking SSH-agent client.
 //!
 //! Wraps [`ssh_agent_lib::blocking::Client`] with a Gitway-native error
@@ -9,6 +9,16 @@
 //! The blocking API is chosen deliberately — an `ssh-add`-style binary has
 //! no use for async concurrency, and avoiding tokio here keeps the
 //! dependency graph small.
+//!
+//! # Cross-platform transport
+//!
+//! On Unix the client connects to the Unix domain socket at
+//! `$SSH_AUTH_SOCK` via [`std::os::unix::net::UnixStream`]. On Windows
+//! the same env var conventionally carries a named-pipe path (OpenSSH
+//! for Windows uses `\\.\pipe\openssh-ssh-agent`); we open that with
+//! [`std::fs::OpenOptions::read(true).write(true).open(path)`], which
+//! gives us a `Read + Write` handle that drives `ssh_agent_lib`'s
+//! transport exactly the same way.
 //!
 //! # Examples
 //!
@@ -36,7 +46,6 @@
 //! argument; the caller's original buffer remains zeroizable.
 
 use std::env;
-use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -48,6 +57,37 @@ use ssh_key::{HashAlg, PrivateKey, PublicKey};
 use zeroize::Zeroizing;
 
 use crate::GitwayError;
+
+// ── Transport abstraction ─────────────────────────────────────────────────────
+//
+// The blocking wire protocol only needs `Read + Write`. On Unix that is
+// a stream socket; on Windows it is a file handle opened against the
+// named pipe. Both are `Sized` + `Debug`, which is all `Client<S>` asks
+// of its inner stream.
+
+/// Underlying byte stream to the agent.
+#[cfg(unix)]
+type Transport = std::os::unix::net::UnixStream;
+#[cfg(windows)]
+type Transport = std::fs::File;
+
+fn open_transport(path: &std::path::Path) -> std::io::Result<Transport> {
+    #[cfg(unix)]
+    {
+        std::os::unix::net::UnixStream::connect(path)
+    }
+    #[cfg(windows)]
+    {
+        // `\\.\pipe\<name>` — OpenSSH for Windows places its agent here.
+        // Opening the pipe for read+write gives us the same byte-stream
+        // semantics as a Unix domain socket from the SSH-agent protocol's
+        // point of view.
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)
+    }
+}
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -69,7 +109,7 @@ pub struct Identity {
 /// more convenient Gitway types.
 #[derive(Debug)]
 pub struct Agent {
-    inner: Client<UnixStream>,
+    inner: Client<Transport>,
 }
 
 impl Agent {
@@ -100,7 +140,7 @@ impl Agent {
     /// Returns [`GitwayError::from`] the underlying I/O error when the
     /// socket cannot be opened.
     pub fn connect(path: &std::path::Path) -> Result<Self, GitwayError> {
-        let stream = UnixStream::connect(path)?;
+        let stream = open_transport(path)?;
         Ok(Self {
             inner: Client::new(stream),
         })

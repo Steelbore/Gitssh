@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Rust guideline compliant 2026-04-21
+// Rust guideline compliant 2026-03-30
 //! Dispatcher for the `gitway agent` subcommand tree.
 //!
-//! Unix-only — Windows named-pipe support is Phase 3 scope. The
-//! `#[cfg(unix)]` gate lives at the module-import site in `main.rs`.
+//! Cross-platform as of v0.6.1. The transport picks itself: on Unix
+//! we connect to a Unix domain socket, on Windows to a named pipe
+//! (conventionally `\\.\pipe\openssh-ssh-agent` — the OpenSSH for
+//! Windows default — or a Gitway-specific pipe of the user's choice).
+//!
+//! A few operations remain Unix-only and fall back to a clear error
+//! on Windows: `gitway agent stop` (no `SIGTERM` equivalent for a
+//! console app) and background-mode `gitway agent start` without
+//! `-D` (no `setsid(2)`). Windows users stick to `-D` and let a
+//! launcher (`start /B`, a Scheduled Task, or a Windows service
+//! wrapper) handle backgrounding.
 //!
 //! Maps parsed [`cli::AgentSubcommand`] variants onto
 //! [`gitway_lib::agent::client::Agent`] operations. All user-facing output
@@ -29,8 +38,12 @@ use crate::{emit_json, emit_json_line, now_iso8601, prompt_passphrase, OutputMod
 use gitway_lib::agent::daemon::{self, AgentDaemonConfig};
 
 // Imports needed by `run_stop`, declared at module scope so clippy's
-// items-after-statements lint stays happy.
+// items-after-statements lint stays happy. Unix-only — the Windows
+// `run_stop` has its own implementation below that returns a clear
+// "not supported" error.
+#[cfg(unix)]
 use nix::sys::signal::{kill, Signal};
+#[cfg(unix)]
 use nix::unistd::Pid;
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -322,15 +335,30 @@ async fn run_start(args: &AgentStartArgs, _mode: OutputMode) -> Result<u32, Gitw
     //      debugging, Ctrl-C friendly).
     //   2. the detached child we respawned from `run_background_start`:
     //      inherits the marker env var and finishes the detach itself.
-    // Everything else (no `-D`, no marker) respawns below.
+    // Everything else (no `-D`, no marker) respawns on Unix.
     if args.foreground || is_daemonized_child {
+        #[cfg(unix)]
         if is_daemonized_child {
             finalize_detach();
         }
         return run_daemon_loop(args).await;
     }
 
-    run_background_start(args)
+    #[cfg(unix)]
+    {
+        run_background_start(args)
+    }
+    #[cfg(not(unix))]
+    {
+        // Windows has no `setsid(2)`; the "detach into a new session"
+        // model doesn't port cleanly. Require `-D` and let the shell
+        // background the process (`start /B`, PowerShell `Start-Job`,
+        // or a Scheduled Task / Windows service) instead.
+        Err(GitwayError::invalid_config(
+            "background mode is Unix-only on this build — run `gitway agent start -D` \
+             and background it with `start /B`, a Scheduled Task, or a Windows service",
+        ))
+    }
 }
 
 /// Runs the in-process agent accept loop. Called both from `-D`
@@ -377,6 +405,7 @@ async fn run_daemon_loop(args: &AgentStartArgs) -> Result<u32, GitwayError> {
 /// leader of a brand-new session (which has no controlling TTY), then
 /// proceeds into the agent loop. Avoiding `pre_exec` keeps the entire
 /// flow free of `unsafe`.
+#[cfg(unix)]
 fn run_background_start(args: &AgentStartArgs) -> Result<u32, GitwayError> {
     let raw_socket_path = args.sock.clone().unwrap_or_else(default_socket_path);
     // The child calls `chdir("/")` after `setsid`, so any relative path
@@ -459,6 +488,7 @@ fn run_background_start(args: &AgentStartArgs) -> Result<u32, GitwayError> {
 /// exist. Needed because the detached child calls `chdir("/")`, so any
 /// relative path passed from the parent's shell cwd would otherwise
 /// resolve under `/` in the child.
+#[cfg(unix)]
 fn absolute_path(path: &Path) -> Result<std::path::PathBuf, GitwayError> {
     if path.is_absolute() {
         return Ok(path.to_owned());
@@ -484,6 +514,7 @@ fn absolute_path(path: &Path) -> Result<std::path::PathBuf, GitwayError> {
 /// `Command::spawn`, but treating it as fatal would wedge the daemon
 /// for no benefit — binding the socket is what matters), and `chdir`
 /// failing only means logs attach to the caller's cwd.
+#[cfg(unix)]
 fn finalize_detach() {
     use nix::sys::stat::{umask, Mode};
     use nix::unistd::{chdir, setsid};
@@ -492,6 +523,7 @@ fn finalize_detach() {
     let _old = umask(Mode::from_bits_truncate(0o077));
 }
 
+#[cfg(unix)]
 fn run_stop(args: &AgentStopArgs, mode: OutputMode) -> Result<u32, GitwayError> {
     let pid = resolve_daemon_pid(args.pid_file.as_deref())?;
     // SIGTERM for graceful shutdown; the daemon unlinks the socket and
@@ -518,6 +550,22 @@ fn run_stop(args: &AgentStopArgs, mode: OutputMode) -> Result<u32, GitwayError> 
     Ok(0)
 }
 
+#[cfg(not(unix))]
+fn run_stop(_args: &AgentStopArgs, _mode: OutputMode) -> Result<u32, GitwayError> {
+    // Windows has no `SIGTERM` — console apps receive `CTRL_C_EVENT`
+    // only from their own console, and service control is out of scope
+    // for v0.6.x. Users running `gitway agent start -D` in a foreground
+    // console stop it with Ctrl+C; anything else should wrap the
+    // process in a launcher that knows how to terminate it (Task
+    // Manager, `Stop-Process` in PowerShell, or a Windows service
+    // harness).
+    Err(GitwayError::invalid_config(
+        "`gitway agent stop` is Unix-only — on Windows stop the agent via Ctrl+C, \
+         `Stop-Process -Id <pid>` in PowerShell, or your service harness",
+    ))
+}
+
+#[cfg(unix)]
 fn resolve_daemon_pid(cli_pid_file: Option<&Path>) -> Result<i32, GitwayError> {
     if let Ok(s) = std::env::var("SSH_AGENT_PID") {
         return s.trim().parse().map_err(|_e: std::num::ParseIntError| {
@@ -567,26 +615,47 @@ fn emit_eval(socket_path: &Path, pid: u32, bourne: bool, csh_forced: bool) {
     }
 }
 
-/// Default socket location: `$XDG_RUNTIME_DIR/gitway-agent.<PID>.sock`
-/// when the runtime dir is set, otherwise `$TMPDIR/gitway-agent-<user>/
-/// agent.<PID>`.
+/// Default socket location.
+///
+/// - **Unix**: `$XDG_RUNTIME_DIR/gitway-agent.<PID>.sock` when the
+///   runtime dir is set, otherwise a 0700 `$TMPDIR/gitway-agent-<user>/
+///   agent.<PID>` fallback.
+/// - **Windows**: `\\.\pipe\gitway-agent.<PID>` — a named pipe under
+///   the standard local pipe namespace. Windows has no `$XDG_RUNTIME_DIR`
+///   equivalent, and the default ACL on `CreatePipe` already restricts
+///   access to the creating user's SID.
 fn default_socket_path() -> std::path::PathBuf {
     let pid = std::process::id();
-    if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
-        return std::path::PathBuf::from(runtime).join(format!("gitway-agent.{pid}.sock"));
-    }
-    let tmp = std::env::var("TMPDIR").unwrap_or_else(|_e| "/tmp".to_owned());
-    let user = std::env::var("USER").unwrap_or_else(|_e| "default".to_owned());
-    let parent = std::path::PathBuf::from(tmp).join(format!("gitway-agent-{user}"));
-    let _ = fs::create_dir_all(&parent);
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
+        if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
+            return std::path::PathBuf::from(runtime).join(format!("gitway-agent.{pid}.sock"));
+        }
+        let tmp = std::env::var("TMPDIR").unwrap_or_else(|_e| "/tmp".to_owned());
+        let user = std::env::var("USER").unwrap_or_else(|_e| "default".to_owned());
+        let parent = std::path::PathBuf::from(tmp).join(format!("gitway-agent-{user}"));
+        let _ = fs::create_dir_all(&parent);
         let _ = fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o700));
+        parent.join(format!("agent.{pid}"))
     }
-    parent.join(format!("agent.{pid}"))
+    #[cfg(not(unix))]
+    {
+        std::path::PathBuf::from(format!(r"\\.\pipe\gitway-agent.{pid}"))
+    }
 }
 
+/// Default pid-file path that sits next to the socket on Unix. On
+/// Windows we never write a pid file by default — named pipes have no
+/// filesystem parent, and `gitway agent stop` is Unix-only anyway.
 fn default_pid_path(socket_path: &Path) -> Option<std::path::PathBuf> {
-    socket_path.parent().map(|p| p.join("gitway-agent.pid"))
+    #[cfg(unix)]
+    {
+        socket_path.parent().map(|p| p.join("gitway-agent.pid"))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = socket_path;
+        None
+    }
 }

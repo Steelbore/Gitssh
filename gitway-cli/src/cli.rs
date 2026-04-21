@@ -54,9 +54,9 @@ pub enum GitwaySubcommand {
     /// Load, list, remove, or lock keys in a running SSH agent.
     ///
     /// `gitway agent` is the Gitway-native equivalent of `ssh-add`; it
-    /// talks to any agent listening on `$SSH_AUTH_SOCK` (Gitway's own
-    /// future daemon or OpenSSH's `ssh-agent`). Unix-only.
-    #[cfg(unix)]
+    /// talks to any agent listening on `$SSH_AUTH_SOCK` — Gitway's own
+    /// daemon or OpenSSH's. On Windows the socket value is a named
+    /// pipe path such as `\\.\pipe\openssh-ssh-agent`.
     Agent(AgentArgs),
 }
 
@@ -235,7 +235,6 @@ pub struct VerifyArgs {
 // ── Agent arguments (Phase 2) ─────────────────────────────────────────────────
 
 /// Top-level flags + nested subcommand for `gitway agent`.
-#[cfg(unix)]
 #[derive(Debug, Args)]
 pub struct AgentArgs {
     #[command(subcommand)]
@@ -243,7 +242,6 @@ pub struct AgentArgs {
 }
 
 /// Subcommands under `gitway agent`.
-#[cfg(unix)]
 #[derive(Debug, Subcommand)]
 pub enum AgentSubcommand {
     /// Load one or more private keys into the agent (ssh-add equivalent).
@@ -263,7 +261,6 @@ pub enum AgentSubcommand {
 }
 
 /// Arguments for `gitway agent add`.
-#[cfg(unix)]
 #[derive(Debug, Args)]
 pub struct AgentAddArgs {
     /// Paths to private keys to load. Defaults to `~/.ssh/id_ed25519`
@@ -283,7 +280,6 @@ pub struct AgentAddArgs {
 }
 
 /// Arguments for `gitway agent list`.
-#[cfg(unix)]
 #[derive(Debug, Args)]
 pub struct AgentListArgs {
     /// Print full public keys (matches `ssh-add -L`) instead of the
@@ -297,7 +293,6 @@ pub struct AgentListArgs {
 }
 
 /// Arguments for `gitway agent remove`.
-#[cfg(unix)]
 #[derive(Debug, Args)]
 pub struct AgentRemoveArgs {
     /// Path to a public or private key file to remove by fingerprint.
@@ -310,7 +305,6 @@ pub struct AgentRemoveArgs {
 }
 
 /// Arguments for `gitway agent lock` / `unlock`.
-#[cfg(unix)]
 #[derive(Debug, Args)]
 pub struct AgentLockArgs {
     /// Passphrase (prompted interactively if omitted).
@@ -319,7 +313,6 @@ pub struct AgentLockArgs {
 }
 
 /// Arguments for `gitway agent start`.
-#[cfg(unix)]
 #[derive(Debug, Args)]
 pub struct AgentStartArgs {
     /// Override the socket path. Defaults to
@@ -356,7 +349,6 @@ pub struct AgentStartArgs {
 }
 
 /// Arguments for `gitway agent stop`.
-#[cfg(unix)]
 #[derive(Debug, Args)]
 pub struct AgentStopArgs {
     /// Pid file to read (default: the agent's advertised location).

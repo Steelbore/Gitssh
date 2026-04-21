@@ -14,7 +14,6 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-#[cfg(unix)]
 mod agent;
 mod cli;
 mod keygen;
@@ -221,7 +220,6 @@ async fn run(cli: Cli) -> Result<u32, GitwayError> {
             GitwaySubcommand::Describe => Ok(run_describe()),
             GitwaySubcommand::Keygen(args) => keygen::run(args.command, mode),
             GitwaySubcommand::Sign(args) => sign::run(&args, mode),
-            #[cfg(unix)]
             GitwaySubcommand::Agent(args) => agent::run(args.command, mode).await,
         };
     }

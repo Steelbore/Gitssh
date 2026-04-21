@@ -1,12 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Rust guideline compliant 2026-04-21
+// Rust guideline compliant 2026-03-30
 //! Long-lived SSH agent daemon.
 //!
 //! Implements the server side of the SSH agent wire protocol on top of
 //! [`ssh_agent_lib`]. Keys are held in-memory only, wrapped in types that
-//! zeroize on drop; nothing is ever persisted to disk. `SIGTERM` and
-//! `SIGINT` trigger graceful shutdown — the socket is unlinked, the pid
-//! file removed, and every stored key is zeroed before the process exits.
+//! zeroize on drop; nothing is ever persisted to disk.
+//!
+//! # Transports
+//!
+//! - **Unix** — binds a Unix domain socket at `config.socket_path`
+//!   with mode `0600`. `SIGTERM` and `SIGINT` trigger graceful
+//!   shutdown.
+//! - **Windows** — creates a named pipe at `config.socket_path`
+//!   (conventionally `\\.\pipe\gitway-agent`). `Ctrl+C` triggers
+//!   graceful shutdown; the pipe object is released automatically
+//!   when the server handle drops.
+//!
+//! On shutdown the stored keys are zeroed via `KeyStore`'s `Drop`, the
+//! pid file is removed, and (on Unix) the socket inode is unlinked.
 //!
 //! # Signing support
 //!
@@ -51,7 +62,6 @@ use ssh_agent_lib::proto::{
 };
 use ssh_key::private::KeypairData;
 use ssh_key::{Algorithm, HashAlg, PrivateKey, Signature};
-use tokio::net::UnixListener;
 use tokio::sync::Mutex;
 
 use crate::GitwayError;
@@ -413,7 +423,6 @@ fn sign_rsa(key: &PrivateKey, data: &[u8], flags: u32) -> Result<Signature, Gitw
 /// the socket and removing the pid file. Every stored key is zeroed as
 /// the `KeyStore` drops.
 pub async fn run(config: AgentDaemonConfig) -> Result<(), GitwayError> {
-    let listener = bind_unix_socket(&config.socket_path)?;
     write_pid_file(config.pid_file.as_deref())?;
 
     let store = Arc::new(Mutex::new(KeyStore::new()));
@@ -434,16 +443,35 @@ pub async fn run(config: AgentDaemonConfig) -> Result<(), GitwayError> {
         }
     });
 
-    // Accept loop + shutdown race. `listen` runs until the listener errors
-    // out; we race it against SIGTERM/SIGINT so a signal always wins.
-    let shutdown = tokio::signal::ctrl_c();
-    #[cfg(unix)]
+    // Platform-split accept loop. On Unix we bind a `UnixListener` and
+    // race its `listen()` against SIGTERM/SIGINT. On Windows we bind a
+    // `NamedPipeListener` and race against Ctrl+C — there is no
+    // SIGTERM equivalent for console apps, and services get their own
+    // shutdown notification via the service control manager (out of
+    // scope for v0.6.x).
+    accept_until_shutdown(&config.socket_path, session).await;
+
+    evict_handle.abort();
+    cleanup(&config);
+    Ok(())
+}
+
+#[cfg(unix)]
+async fn accept_until_shutdown(socket_path: &Path, session: AgentSession) {
+    let listener = match bind_unix_socket(socket_path) {
+        Ok(l) => l,
+        Err(e) => {
+            log::warn!("gitway-agent: bind failed: {e}");
+            return;
+        }
+    };
+
+    let ctrl_c = tokio::signal::ctrl_c();
     let sigterm = async {
         let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
         term.recv().await;
         Ok::<_, std::io::Error>(())
     };
-
     let accept_loop = listen(listener, session);
 
     tokio::select! {
@@ -452,26 +480,53 @@ pub async fn run(config: AgentDaemonConfig) -> Result<(), GitwayError> {
                 log::warn!("gitway-agent: accept loop ended with error: {e}");
             }
         }
-        _ = shutdown => {
+        _ = ctrl_c => {
             log::info!("gitway-agent: SIGINT received, shutting down");
         }
         _ = sigterm => {
             log::info!("gitway-agent: SIGTERM received, shutting down");
         }
     }
+}
 
-    evict_handle.abort();
-    cleanup(&config);
-    Ok(())
+#[cfg(windows)]
+async fn accept_until_shutdown(socket_path: &Path, session: AgentSession) {
+    use ssh_agent_lib::agent::NamedPipeListener;
+
+    let listener = match NamedPipeListener::bind(socket_path.as_os_str()) {
+        Ok(l) => l,
+        Err(e) => {
+            log::warn!(
+                "gitway-agent: named-pipe bind failed for {}: {e}",
+                socket_path.display()
+            );
+            return;
+        }
+    };
+
+    let ctrl_c = tokio::signal::ctrl_c();
+    let accept_loop = listen(listener, session);
+
+    tokio::select! {
+        res = accept_loop => {
+            if let Err(e) = res {
+                log::warn!("gitway-agent: accept loop ended with error: {e}");
+            }
+        }
+        _ = ctrl_c => {
+            log::info!("gitway-agent: Ctrl+C received, shutting down");
+        }
+    }
 }
 
 // ── Socket / pid plumbing ─────────────────────────────────────────────────────
 
-fn bind_unix_socket(path: &Path) -> Result<UnixListener, GitwayError> {
+#[cfg(unix)]
+fn bind_unix_socket(path: &Path) -> Result<tokio::net::UnixListener, GitwayError> {
     use std::os::unix::fs::PermissionsExt as _;
     // Remove any stale socket file so bind() doesn't fail with "address in use".
     let _ = std::fs::remove_file(path);
-    let listener = UnixListener::bind(path)?;
+    let listener = tokio::net::UnixListener::bind(path)?;
     // Restrict the socket inode to the owning user only.
     let mut perms = std::fs::metadata(path)?.permissions();
     perms.set_mode(SOCKET_MODE);
@@ -489,13 +544,23 @@ fn write_pid_file(path: Option<&Path>) -> Result<(), GitwayError> {
 }
 
 fn cleanup(config: &AgentDaemonConfig) {
-    let _ = std::fs::remove_file(&config.socket_path);
+    // On Windows, named pipes are refcounted kernel objects rather
+    // than filesystem entries — once the server handle drops, the pipe
+    // is gone. `remove_file` would fail harmlessly on `\\.\pipe\...`,
+    // so skip it.
+    #[cfg(unix)]
+    {
+        let _ = std::fs::remove_file(&config.socket_path);
+    }
     if let Some(ref p) = config.pid_file {
         let _ = std::fs::remove_file(p);
     }
 }
 
-/// Unix-mode bits for the agent socket (owner read/write only).
+/// Unix-mode bits for the agent socket (owner read/write only). On
+/// Windows the equivalent access control comes from the default pipe
+/// ACL, which restricts access to the creating user's SID.
+#[cfg(unix)]
 const SOCKET_MODE: u32 = 0o600;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

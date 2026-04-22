@@ -1,7 +1,7 @@
 # Gitway — Project Plan
 
 **Maintainer:** [Mohamed Hammad](mailto:MJ@S3cure.me)
-**Status:** v0.6.0 shipped (2026-04-21); v0.6.1 follow-ups complete (2026-04-22). The OpenSSH-replacement plan including all v0.6.x follow-ups is done.
+**Status:** v0.6.0 shipped (2026-04-21); v0.6.1 follow-ups complete (2026-04-22); v0.6.2 NixOS packaging + failure diagnostic complete (2026-04-22). The OpenSSH-replacement plan including all v0.6.x follow-ups is done.
 
 ---
 
@@ -90,6 +90,7 @@ driving via the transport's `#[tokio::main]`.
 | v0.5.0  | 2026-04-21 | §5.7 Phase 2 — `gitway agent add/list/remove/lock/unlock` + `gitway-add` shim. |
 | v0.6.0  | 2026-04-21 | §5.7 Phase 3 — `gitway agent start/stop` daemon with Ed25519 sign, TTL eviction, SIGTERM shutdown. Real OpenSSH verifies Gitway-produced signatures. |
 | v0.6.1  | 2026-04-22 | v0.6.x follow-ups — ECDSA/RSA daemon sign, background double-fork daemonization, hardened systemd user unit, interactive `--confirm` via `$SSH_ASKPASS`, and Windows named-pipe transport for both client and daemon. |
+| v0.6.2  | 2026-04-22 | NixOS packaging — flake reads version from `Cargo.toml`, `homeManagerModules.default` and `nixosModules.default` exposing `services.gitway-agent.enable`, CI `nix flake check` job. README "On NixOS" + "Making gitway discoverable to Git" + "First-run setup". Single-line stderr failure diagnostic (`gitway diag ts=… pid=… code=… reason=… argv=…`) across all three binaries. |
 
 ## 5. v0.6.x follow-up work
 

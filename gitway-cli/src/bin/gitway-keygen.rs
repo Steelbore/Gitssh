@@ -694,12 +694,52 @@ fn load_and_decrypt(path: &Path, old_pp: Option<&str>) -> Result<PrivateKey, Git
     }
     let pp: Zeroizing<String> = match old_pp {
         Some(s) => Zeroizing::new(s.to_owned()),
-        None => rpassword::prompt_password(format!("Enter passphrase for {}: ", path.display()))
-            .map(Zeroizing::new)
-            .map_err(GitwayError::from)?,
+        None => {
+            match rpassword::prompt_password(format!("Enter passphrase for {}: ", path.display())) {
+                Ok(pw) => Zeroizing::new(pw),
+                Err(e) => return Err(passphrase_prompt_failed(path, &e)),
+            }
+        }
     };
     key.decrypt(pp.as_bytes())
         .map_err(|e| GitwayError::signing(format!("decrypt failed: {e}")))
+}
+
+/// Builds a user-facing error for the common case where the passphrase
+/// prompt cannot run — typically because git invoked us via an IDE,
+/// systemd service, or CI runner that has no controlling terminal
+/// (`open("/dev/tty", ...)` → ENXIO) and the key is still encrypted on
+/// disk.
+///
+/// Replaces the raw `"I/O error: No such device or address (os error 6)"`
+/// surface with an actionable explanation: load the key into an agent
+/// (at which point the agent-sign path in `run_sign` takes over — no
+/// passphrase prompt needed) or set `SSH_ASKPASS` to a GUI helper.
+fn passphrase_prompt_failed(key_path: &Path, io_err: &io::Error) -> GitwayError {
+    // ENXIO (errno 6 on Linux and macOS) is the specific signal that
+    // there's no controlling terminal to prompt on.  Other I/O errors
+    // (permission denied on /dev/tty, etc.) get the same guidance —
+    // the fix is the same regardless of the exact underlying cause.
+    let root = if io_err.raw_os_error() == Some(6) {
+        "no terminal is attached to this process"
+    } else {
+        "could not read from the terminal"
+    };
+    GitwayError::invalid_config(format!(
+        "cannot prompt for the passphrase to decrypt {key}: {root} ({io_err}).\n\
+         \n\
+         This is normal when git is invoked by an IDE, a systemd user service, \
+         CI, or any non-interactive shell.  Two ways to unblock:\n\
+         \n\
+         1. Load the key into the agent, so `gitway-keygen -Y sign` uses the \
+            agent and never needs the passphrase:\n\
+         \n\
+                gitway-add {key}\n\
+         \n\
+         2. Set `SSH_ASKPASS` to a GUI passphrase helper (e.g. ksshaskpass, \
+            ssh-askpass-gnome) so the prompt opens a dialog instead.",
+        key = key_path.display(),
+    ))
 }
 
 fn default_comment() -> String {

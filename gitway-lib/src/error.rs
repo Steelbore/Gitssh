@@ -95,6 +95,16 @@ impl fmt::Display for GitwayErrorKind {
 #[derive(Debug)]
 pub struct GitwayError {
     kind: GitwayErrorKind,
+    /// Optional per-instance hint override.  When set, [`hint`](GitwayError::hint)
+    /// returns this string instead of the static default chosen from
+    /// [`GitwayErrorKind`].
+    ///
+    /// Context-specific hints fire much more precisely than the kind-level
+    /// defaults: an `InvalidConfig` error from the `-E` flag parser can
+    /// say "pass `sha256` or `sha512` to `-E`", while an `InvalidConfig`
+    /// error from the sign path can say "load the key into the agent".
+    /// The kind-level default stays as the catch-all fallback.
+    custom_hint: Option<String>,
     backtrace: Backtrace,
 }
 
@@ -103,8 +113,31 @@ impl GitwayError {
     pub(crate) fn new(kind: GitwayErrorKind) -> Self {
         Self {
             kind,
+            custom_hint: None,
             backtrace: Backtrace::capture(),
         }
+    }
+
+    /// Attaches a context-specific hint that supersedes the kind-level
+    /// default returned by [`hint`](GitwayError::hint).
+    ///
+    /// Use this at call sites where the caller knows exactly what the
+    /// user should do next — much more useful than a generic "run
+    /// `gitway --help`".
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use gitway_lib::GitwayError;
+    ///
+    /// let e = GitwayError::invalid_config("no such host: github.com.invalid")
+    ///     .with_hint("Check the hostname for typos, or run `gitway --test <host>` to confirm reachability");
+    /// assert!(e.hint().contains("typos"));
+    /// ```
+    #[must_use]
+    pub fn with_hint(mut self, hint: impl Into<String>) -> Self {
+        self.custom_hint = Some(hint.into());
+        self
     }
 
     // ── Constructors for common variants ─────────────────────────────────────
@@ -240,32 +273,58 @@ impl GitwayError {
         }
     }
 
-    /// Returns a short diagnostic hint for structured JSON output (SFRS Rule 5).
+    /// Returns a short "what to do next" line for the user.
+    ///
+    /// Call-site-specific hints attached via [`with_hint`](Self::with_hint)
+    /// take priority.  Otherwise the kind-level default is returned —
+    /// these are deliberately phrased in plain English and prescriptive
+    /// voice (tell the reader what to type, not what went wrong; the
+    /// [`Display`](std::fmt::Display) output already says what went wrong).
+    ///
+    /// Emitted on stderr after the error message in human mode, and
+    /// carried as the `hint` field in `--json` output (SFRS Rule 5).
     #[must_use]
-    pub fn hint(&self) -> &'static str {
+    pub fn hint(&self) -> &str {
+        if let Some(h) = self.custom_hint.as_deref() {
+            return h;
+        }
         match &self.kind {
             GitwayErrorKind::HostKeyMismatch { .. } => {
-                "Run 'gitway --test --verbose' to diagnose, \
-                 or check ~/.config/gitway/known_hosts"
+                "The server's SSH fingerprint doesn't match what gitway trusts. \
+                 This is either a routine key rotation by the provider or a \
+                 possible man-in-the-middle attack. Compare the received \
+                 fingerprint against the provider's official list; if you \
+                 trust it, add it to ~/.config/gitway/known_hosts."
             }
             GitwayErrorKind::AuthenticationFailed => {
-                "Ensure your SSH public key is registered with the Git hosting service, \
-                 or run 'ssh-add' to load a key into the agent"
+                "The server rejected your SSH key. Two things to check: the \
+                 public key is registered in the provider's account settings, \
+                 and the private key is loaded (run `gitway-add ~/.ssh/id_ed25519`)."
             }
             GitwayErrorKind::NoKeyFound => {
-                "Run 'ssh-keygen -t ed25519' to generate a key, or use --identity to specify one"
+                "No SSH key was found. Generate one with `gitway keygen ed25519 \
+                 --out ~/.ssh/id_ed25519`, or point gitway at an existing key \
+                 via `--identity <path>`."
             }
-            GitwayErrorKind::InvalidConfig { .. } => "Run 'gitway --help' for usage information",
+            GitwayErrorKind::InvalidConfig { .. } => {
+                "Something in your command or config is off. Run `gitway --help` \
+                 to see accepted flags, or re-read the error message above — \
+                 it usually names the exact argument to fix."
+            }
             GitwayErrorKind::Signing { .. } => {
-                "Ensure the private key is readable and the passphrase is correct; \
-                 run with --verbose to see the underlying cryptographic error"
+                "Signing the commit failed. If the key is encrypted, either \
+                 load it into the agent (`gitway-add <key>`) so signing can \
+                 use it without a passphrase, or set SSH_ASKPASS to a GUI \
+                 helper so you can type the passphrase in a dialog."
             }
             GitwayErrorKind::SignatureInvalid { .. } => {
-                "The signature is invalid, was signed with a different key, \
-                 or uses a different namespace than expected"
+                "The signature doesn't match. Either the signed data was \
+                 changed after signing, a different key produced it, or the \
+                 namespace (usually `git`) is different."
             }
             GitwayErrorKind::Io(_) | GitwayErrorKind::Ssh(_) | GitwayErrorKind::Keys(_) => {
-                "Run 'gitway --test --verbose' to diagnose the connection"
+                "Something broke before the SSH session was fully set up. \
+                 Run `gitway --test --verbose <host>` to see where it fails."
             }
         }
     }

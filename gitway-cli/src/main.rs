@@ -161,6 +161,13 @@ async fn main() {
                 OutputMode::Human => {
                     // Write all errors to stderr so stdout stays clean (NFR-11).
                     eprintln!("gitway: error: {e}");
+                    // Actionable "what to do next" line below the error —
+                    // every `GitwayError` kind provides a prescriptive
+                    // hint (either call-site-specific via `with_hint` or
+                    // the plain-English default from `hint()`).  Keeps
+                    // the terminal UX readable without needing to re-read
+                    // the technical error message.
+                    eprintln!("gitway: what to do: {}", e.hint());
                     // Single-line diagnostic — turns silent exit-128 failures
                     // that git reports when `core.sshCommand` fails into one
                     // grep-able record with PID + argv + exit code + reason.

@@ -122,13 +122,24 @@ impl Agent {
     /// socket cannot be opened.
     pub fn from_env() -> Result<Self, GitwayError> {
         let sock = env::var("SSH_AUTH_SOCK").map_err(|_e| {
-            GitwayError::invalid_config(
-                "SSH_AUTH_SOCK is not set — start an agent first \
-                 (e.g. `eval $(ssh-agent -s)`) or pass --socket",
+            GitwayError::invalid_config("SSH_AUTH_SOCK is not set").with_hint(
+                "No SSH agent is advertised in this shell. Start one with \
+                 `gitway agent start -s` and eval the output, or enable the \
+                 bundled systemd user unit (`systemctl --user enable --now \
+                 gitway-agent.service`). NixOS + Home Manager users can set \
+                 `services.gitway-agent.enable = true;` — the unit runs \
+                 automatically and `SSH_AUTH_SOCK` is exported to every \
+                 child of `systemd --user`.",
             )
         })?;
         if sock.is_empty() {
-            return Err(GitwayError::invalid_config("SSH_AUTH_SOCK is empty"));
+            return Err(
+                GitwayError::invalid_config("SSH_AUTH_SOCK is empty").with_hint(
+                    "Something cleared `SSH_AUTH_SOCK` to the empty string. \
+                 Unset it (`unset SSH_AUTH_SOCK`) and re-export it to a \
+                 real socket path, or just restart the shell.",
+                ),
+            );
         }
         Self::connect(&PathBuf::from(sock))
     }

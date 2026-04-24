@@ -27,7 +27,7 @@
 
 use std::path::Path;
 
-use crate::error::{GitwayError, GitwayErrorKind};
+use crate::error::GitwayError;
 
 // ── Well-known host constants ─────────────────────────────────────────────────
 
@@ -196,12 +196,22 @@ pub fn fingerprints_for_host(
 
     // No fingerprints at all → refuse the connection with a clear message.
     if fps.is_empty() {
-        return Err(GitwayError::new(GitwayErrorKind::InvalidConfig {
-            message: format!(
-                "no fingerprints found for host '{host}'; \
-                 add an entry to ~/.config/gitway/known_hosts"
-            ),
-        }));
+        return Err(GitwayError::invalid_config(format!(
+            "no fingerprints known for host '{host}'"
+        ))
+        .with_hint(format!(
+            "Gitway refuses to connect to hosts whose SSH fingerprint it can't \
+             verify (no trust-on-first-use). Either you typed the hostname \
+             wrong, or this is a self-hosted server and you need to pin its \
+             fingerprint: fetch it from the provider's docs (GitHub, GitLab, \
+             Codeberg publish them) and append one line to \
+             ~/.config/gitway/known_hosts:\n\
+             \n\
+                 {host} SHA256:<base64-fingerprint>\n\
+             \n\
+             As a last resort, re-run with --insecure-skip-host-check (not \
+             recommended — this disables MITM protection)."
+        )));
     }
 
     Ok(fps)

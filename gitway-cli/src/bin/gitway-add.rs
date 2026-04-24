@@ -51,6 +51,10 @@ fn main() -> ExitCode {
         Ok(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
         Err(e) => {
             eprintln!("gitway-add: error: {e}");
+            // Actionable "what to do next" line — every `GitwayError`
+            // kind provides a prescriptive hint.  Call sites that know
+            // the context attach a more specific hint via `with_hint`.
+            eprintln!("gitway-add: what to do: {}", e.hint());
             // Single-line diagnostic — IDE/credential-manager callers
             // routinely swallow stderr; emit one grep-able record so a
             // user chasing "agent add silently failed" in their IDE

@@ -16,6 +16,12 @@ fuzz/target/
 *~
 .DS_Store
 
+# Claude Code per-project config and local state.  These live under the
+# project directory so the harness can scope settings, hooks, permissions,
+# and plans per-repo, but they are user-/machine-specific and must not be
+# checked in.  See https://docs.claude.com/en/docs/claude-code/settings.
+.claude/
+
 # Nix
 result
 result-*

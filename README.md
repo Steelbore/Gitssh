@@ -198,19 +198,64 @@ sudo zypper install ./target/generate-rpm/gitway-*.rpm
 ### On Windows
 
 Pre-built Windows binaries are attached to every GitHub release as a `.zip`
-archive.
+archive containing `gitway.exe`, `gitway-keygen.exe`, `LICENSE`, and
+`README.md`.  `gitway-add` is Unix-only and is not shipped for Windows;
+on Windows, use `gitway agent` directly.
 
 **Install a pre-built binary (recommended):**
 
-1. Download `gitway-windows-x86_64.zip` from the
+The recommended location is `C:\Program Files\Gitway\` on **System** PATH.
+This mirrors how every Microsoft / JetBrains / Mozilla / etc. installer
+places binaries on Windows, and System PATH (as opposed to User PATH)
+ensures IDEs, GUI git clients, scheduled tasks, and Windows services that
+do not inherit your interactive-shell environment can still find `gitway`
+and `gitway-keygen`.
+
+Both steps need an elevated PowerShell (right-click → *Run as administrator*).
+
+1. Download `gitway-v<VERSION>-windows-x86_64.zip` from the
    [Releases page](https://github.com/steelbore/gitway/releases/latest).
-2. Extract the archive and place `gitway.exe`, `gitway-keygen.exe`, and
-   `gitway-add.exe` in a directory of your choice (e.g. `C:\tools\gitway\`).
-3. Add that directory to your **System** `PATH` via
-   *System Properties → Environment Variables → System variables → Path → Edit*.
-   Using the System PATH (not the User PATH) ensures IDEs and non-interactive
-   processes launched by Windows can find `gitway`.
-4. Open a new terminal and verify: `gitway --test`
+2. Extract it to `C:\Program Files\Gitway\`:
+
+   ```powershell
+   $zip = "$env:USERPROFILE\Downloads\gitway-v<VERSION>-windows-x86_64.zip"
+   Expand-Archive -Path $zip -DestinationPath 'C:\Program Files\Gitway\' -Force
+   ```
+
+3. Add `C:\Program Files\Gitway` to **System** PATH (idempotent — safe to
+   re-run on upgrade):
+
+   ```powershell
+   $machinePath = [Environment]::GetEnvironmentVariable('Path','Machine')
+   if (-not (($machinePath -split ';') -contains 'C:\Program Files\Gitway')) {
+       [Environment]::SetEnvironmentVariable(
+           'Path', "$machinePath;C:\Program Files\Gitway", 'Machine')
+   }
+   ```
+
+4. Open a **new** terminal so it picks up the updated System PATH, then
+   verify:
+
+   ```powershell
+   gitway --version
+   gitway --test
+   ```
+
+**Upgrading from an older version:**
+
+Re-run step 2 with `-Force`; `Expand-Archive` will overwrite the existing
+binaries.  Step 3 is a no-op once `C:\Program Files\Gitway` is already on
+System PATH.  Restart any IDE that was running before the upgrade so its
+git subprocess inherits the refreshed environment.
+
+**Why not `C:\tools\gitway\` or `%LOCALAPPDATA%\Programs\Gitway\`?**
+
+User-scoped paths (`%LOCALAPPDATA%`, `%USERPROFILE%`) work for solo-user
+workflows but are invisible to system services, Windows Task Scheduler
+running under a different account, and AppContainer / sandboxed clients.
+Non-standard paths under `C:\` (`C:\tools\`, `C:\opt\`) work mechanically
+but break the *Add or remove programs* style mental model new contributors
+expect on Windows.
 
 **Build from source:**
 
@@ -223,6 +268,11 @@ winget install nasm
 # then restart the terminal so nasm.exe is on PATH
 cargo install gitway gitway-keygen
 ```
+
+`cargo install` writes to `%USERPROFILE%\.cargo\bin\`, which is on User
+PATH only — fine for terminal use but subject to the same discoverability
+caveats above for IDEs and services.  For shared use, copy the resulting
+binaries into `C:\Program Files\Gitway\` per the recipe above.
 
 **Agent on Windows:**
 

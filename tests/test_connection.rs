@@ -12,7 +12,7 @@
 //! The tests are intentionally excluded from the default `cargo test` run to
 //! avoid flaky failures in CI environments that lack network access or keys.
 
-use anvil_ssh::{GitwayConfig, GitwaySession};
+use anvil_ssh::{AnvilConfig, AnvilSession, StrictHostKeyChecking};
 
 /// Returns `true` when integration tests are enabled.
 fn integration_enabled() -> bool {
@@ -33,8 +33,8 @@ async fn connect_to_github_verifies_host_key() {
         return;
     }
 
-    let config = GitwayConfig::github();
-    let session = GitwaySession::connect(&config)
+    let config = AnvilConfig::github();
+    let session = AnvilSession::connect(&config)
         .await
         .expect("connection and host-key verification must succeed");
 
@@ -61,10 +61,10 @@ async fn host_key_mismatch_is_rejected() {
     let fake_fp = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
     // Verify the server is actually reachable first.
-    let reachability_config = GitwayConfig::builder("github.com")
-        .skip_host_check(true)
+    let reachability_config = AnvilConfig::builder("github.com")
+        .strict_host_key_checking(StrictHostKeyChecking::No)
         .build();
-    let _s = GitwaySession::connect(&reachability_config)
+    let _s = AnvilSession::connect(&reachability_config)
         .await
         .expect("server must be reachable");
 
@@ -74,11 +74,11 @@ async fn host_key_mismatch_is_rejected() {
     std::fs::write(tmp.path(), format!("github.com {fake_fp}\n"))
         .expect("write temp known_hosts");
 
-    let config = GitwayConfig::builder("github.com")
+    let config = AnvilConfig::builder("github.com")
         .custom_known_hosts(tmp.path())
         .build();
 
-    let result = GitwaySession::connect(&config).await;
+    let result = AnvilSession::connect(&config).await;
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(
@@ -96,13 +96,13 @@ async fn insecure_skip_host_check_bypasses_verification() {
         return;
     }
 
-    let config = GitwayConfig::builder("github.com")
-        .skip_host_check(true)
+    let config = AnvilConfig::builder("github.com")
+        .strict_host_key_checking(StrictHostKeyChecking::No)
         .build();
 
-    let session = GitwaySession::connect(&config)
+    let session = AnvilSession::connect(&config)
         .await
-        .expect("connection must succeed with skip_host_check");
+        .expect("connection must succeed with StrictHostKeyChecking::No");
 
     session.close().await.expect("disconnect must succeed");
 }

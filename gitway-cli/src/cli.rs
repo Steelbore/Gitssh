@@ -58,6 +58,15 @@ pub enum GitwaySubcommand {
     /// daemon or OpenSSH's. On Windows the socket value is a named
     /// pipe path such as `\\.\pipe\openssh-ssh-agent`.
     Agent(AgentArgs),
+    /// Inspect resolved `ssh_config(5)` — the Gitway equivalent of
+    /// `ssh -G <host>`.
+    ///
+    /// `gitway config show <host>` reads `~/.ssh/config` (and
+    /// `/etc/ssh/ssh_config` on Unix), expands `Include` directives,
+    /// matches the host pattern, and prints the resolved key/value
+    /// pairs.  Honours the `--no-config` global flag — useful for
+    /// confirming that `ssh_config` is being applied as expected.
+    Config(ConfigArgs),
 }
 
 // ── Keygen arguments ──────────────────────────────────────────────────────────
@@ -358,6 +367,49 @@ pub struct AgentStopArgs {
 
 // ── Main CLI struct ───────────────────────────────────────────────────────────
 
+// ── Config arguments (Phase: M12.7) ──────────────────────────────────────────
+
+/// Top-level flags + nested subcommand for `gitway config`.
+#[derive(Debug, Args)]
+pub struct ConfigArgs {
+    #[command(subcommand)]
+    pub command: ConfigSubcommand,
+}
+
+/// Subcommands under `gitway config`.
+#[derive(Debug, Subcommand)]
+pub enum ConfigSubcommand {
+    /// Resolve effective `ssh_config` for `<host>` (Gitway's `ssh -G`).
+    Show(ConfigShowArgs),
+}
+
+/// Arguments for `gitway config show`.
+#[derive(Debug, Args)]
+pub struct ConfigShowArgs {
+    /// Host alias to resolve.  Matched against `Host` blocks in the
+    /// user and (on Unix) system `ssh_config` files; literal hostname
+    /// when the user runs `ssh github.com`.
+    #[arg(value_name = "HOST")]
+    pub host: String,
+
+    /// Override the user-level `ssh_config` path.  Defaults to
+    /// `~/.ssh/config` (or `%USERPROFILE%\.ssh\config` on Windows).
+    #[arg(long = "user-config", value_name = "FILE")]
+    pub user_config: Option<PathBuf>,
+
+    /// Override the system-level `ssh_config` path.  Defaults to
+    /// `/etc/ssh/ssh_config` on Unix and `%PROGRAMDATA%\ssh\ssh_config`
+    /// on Windows; pass `--system-config=` (empty value) to disable.
+    #[arg(long = "system-config", value_name = "FILE")]
+    pub system_config: Option<PathBuf>,
+
+    /// Reveal redacted identity-file paths.  Without this flag,
+    /// values matching `*id_*` (no `.pub` suffix) under typical key
+    /// directories are displayed as `[REDACTED]` (NFR-20).
+    #[arg(long = "show-secrets", action = ArgAction::SetTrue)]
+    pub show_secrets: bool,
+}
+
 /// Gitway — pure-Rust SSH toolkit for Git: transport, keys, signing, agent.
 ///
 /// Acts as a drop-in replacement for `ssh` when used with `GIT_SSH_COMMAND`
@@ -435,9 +487,13 @@ pub struct Cli {
     pub user: Option<String>,
 
     // ── Connection options ────────────────────────────────────────────────────
-    /// SSH port (default: 22).
-    #[arg(short = 'p', long = "port", value_name = "PORT", default_value_t = 22)]
-    pub port: u16,
+    /// SSH port.
+    ///
+    /// Defaults to the `Port` directive from `ssh_config(5)` if set
+    /// for the target host, or 22 otherwise.  Explicit `--port` always
+    /// wins (matches OpenSSH precedence).
+    #[arg(short = 'p', long = "port", value_name = "PORT")]
+    pub port: Option<u16>,
 
     // ── Security ──────────────────────────────────────────────────────────────
     /// Skip host-key verification.
@@ -446,6 +502,13 @@ pub struct Cli {
     /// fingerprints.  Use only as a last resort (FR-8).
     #[arg(long = "insecure-skip-host-check", action = ArgAction::SetTrue)]
     pub insecure_skip_host_check: bool,
+
+    /// Do not read any `ssh_config(5)` files.  Equivalent to OpenSSH's
+    /// `-F /dev/null` — useful when reproducing connection failures
+    /// from an unconfigured environment, or when ssh_config-derived
+    /// values are causing trouble.
+    #[arg(long = "no-config", action = ArgAction::SetTrue)]
+    pub no_config: bool,
 
     // ── Output format (SFRS Rule 1) ───────────────────────────────────────────
     /// Emit structured JSON output (shorthand for `--format json`).

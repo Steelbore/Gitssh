@@ -16,6 +16,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 mod agent;
 mod cli;
+mod config;
 mod keygen;
 mod sign;
 
@@ -202,6 +203,7 @@ async fn run(cli: Cli) -> Result<u32, AnvilError> {
             GitwaySubcommand::Keygen(args) => keygen::run(args.command, mode),
             GitwaySubcommand::Sign(args) => sign::run(&args, mode),
             GitwaySubcommand::Agent(args) => agent::run(args.command, mode).await,
+            GitwaySubcommand::Config(args) => config::run(args.command, mode),
         };
     }
 
@@ -221,15 +223,54 @@ async fn run(cli: Cli) -> Result<u32, AnvilError> {
     // sourcehut uses each user's login, etc.
     let (parsed_user, host) = parse_user_host(&raw_host);
 
-    let mut config_builder = AnvilConfig::builder(&host)
-        .port(cli.port)
-        .verbose(cli.verbose)
-        .skip_host_check(cli.insecure_skip_host_check);
+    // Resolve ssh_config(5) for the host, unless the user passed
+    // `--no-config` (equivalent to OpenSSH's `-F /dev/null`).  The
+    // resolved values feed `apply_ssh_config()` BELOW; CLI-supplied
+    // values (port, identity, cert, user, --insecure-skip-host-check)
+    // are layered on top so they take precedence (matches OpenSSH).
+    let resolved = if cli.no_config {
+        None
+    } else {
+        match anvil_ssh::ssh_config::resolve(
+            &host,
+            &anvil_ssh::ssh_config::SshConfigPaths::default_paths(),
+        ) {
+            Ok(r) => Some(r),
+            Err(e) => {
+                // A malformed ssh_config shouldn't be silently ignored
+                // (would mask user-visible errors), but it shouldn't
+                // brick the connection either.  Log and continue with
+                // an empty resolved config.
+                log::warn!("ssh_config: ignored due to error: {e}");
+                None
+            }
+        }
+    };
+
+    let mut config_builder = AnvilConfig::builder(&host).verbose(cli.verbose);
+
+    // Apply ssh_config-derived defaults FIRST.  Subsequent builder
+    // calls (CLI overrides) override them, matching OpenSSH precedence:
+    // explicit command-line flag > ssh_config > builder default.
+    if let Some(ref r) = resolved {
+        config_builder = config_builder.apply_ssh_config(r);
+    }
+
+    // CLI overrides — applied AFTER ssh_config so they take precedence.
+    if let Some(port) = cli.port {
+        config_builder = config_builder.port(port);
+    }
+
+    if cli.insecure_skip_host_check {
+        config_builder =
+            config_builder.strict_host_key_checking(anvil_ssh::StrictHostKeyChecking::No);
+    }
 
     // Username precedence (matches OpenSSH `ssh -l`):
     //   1. Explicit `-l/--user` on the command line.
     //   2. The `user@` prefix on the host arg.
-    //   3. The `AnvilConfig` builder default (`git`).
+    //   3. ssh_config `User` (already applied above).
+    //   4. The `AnvilConfig` builder default (`git`).
     if let Some(ref user) = cli.user {
         config_builder = config_builder.username(user.clone());
     } else if let Some(user) = parsed_user {
@@ -237,7 +278,7 @@ async fn run(cli: Cli) -> Result<u32, AnvilError> {
     }
 
     if let Some(ref identity) = cli.identity {
-        config_builder = config_builder.identity_file(identity.clone());
+        config_builder = config_builder.add_identity_file(identity.clone());
     }
 
     if let Some(ref cert) = cli.cert {
@@ -493,6 +534,13 @@ fn run_schema() -> u32 {
                 "supports_json": true,
                 "idempotent": false,
                 "subcommands": ["add", "list", "remove", "lock", "unlock"]
+            },
+            {
+                "name": "gitway config <sub>",
+                "description": "Inspect resolved ssh_config(5) (Gitway's `ssh -G`)",
+                "supports_json": true,
+                "idempotent": true,
+                "subcommands": ["show"]
             }
         ],
         "binaries": [
@@ -517,8 +565,9 @@ fn run_schema() -> u32 {
             "--identity": { "type": "string", "description": "Path to SSH private key" },
             "--cert": { "type": "string", "description": "Path to OpenSSH certificate" },
             "--user": { "type": "string", "default": "git", "description": "Remote SSH username (e.g. `aur` for AUR; default `git`)" },
-            "--port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 22 },
+            "--port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "SSH port (default: 22 or ssh_config Port)" },
             "--insecure-skip-host-check": { "type": "boolean", "description": "Skip host-key verification (danger)" },
+            "--no-config": { "type": "boolean", "description": "Do not read any ssh_config(5) files" },
         },
         "exit_codes": {
             "0": "Success",
@@ -588,6 +637,12 @@ fn run_describe() -> u32 {
                 "description": "Client operations against any SSH agent (Unix-only in v0.5)",
                 "supports_json": true,
                 "idempotent": false,
+            },
+            {
+                "name": "gitway config",
+                "description": "Inspect resolved ssh_config(5) (Gitway's `ssh -G`)",
+                "supports_json": true,
+                "idempotent": true,
             }
         ],
         "companion_binaries": [
@@ -595,8 +650,8 @@ fn run_describe() -> u32 {
             "gitway-add"
         ],
         "global_flags": ["--json", "--format", "--verbose", "--no-color",
-                         "--insecure-skip-host-check", "--identity", "--cert",
-                         "--user", "--port"],
+                         "--insecure-skip-host-check", "--no-config",
+                         "--identity", "--cert", "--user", "--port"],
         "output_formats": ["json"],
         "mcp_available": false,
         "providers": ["github.com", "gitlab.com", "codeberg.org"],

@@ -40,26 +40,26 @@ const EXIT_NEEDS_YES: u32 = 78;
 
 /// Dispatches one `gitway hosts <sub>` invocation.
 ///
+/// `async` because `run_add` awaits `AnvilSession::connect` for the
+/// FR-85 host-key probe.  The two synchronous verbs (`revoke` and
+/// `list`) live alongside the async dispatch for code unity — they
+/// don't await anything but cost nothing to call from this context.
+///
+/// Caller must already be inside a tokio runtime (the `#[tokio::main]`
+/// in `main.rs` provides one).  Spinning up a second runtime here
+/// panics with "Cannot start a runtime from within a runtime"; that's
+/// why this is `async` rather than wrapping a `block_on`.
+///
 /// # Errors
 ///
 /// Returns the underlying `AnvilError` from each verb's
 /// implementation.
-pub fn run(sub: HostsSubcommand, mode: OutputMode) -> Result<u32, AnvilError> {
-    // tokio runtime for the FR-85 connect path; `revoke` and `list`
-    // are sync but it's cheap to set this up unconditionally.
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|e| {
-            AnvilError::invalid_config(format!("could not start tokio runtime for hosts: {e}"))
-        })?;
-    rt.block_on(async {
-        match sub {
-            HostsSubcommand::Add(args) => run_add(args, mode).await,
-            HostsSubcommand::Revoke(args) => run_revoke(&args, mode),
-            HostsSubcommand::List(args) => run_list(&args, mode),
-        }
-    })
+pub async fn run(sub: HostsSubcommand, mode: OutputMode) -> Result<u32, AnvilError> {
+    match sub {
+        HostsSubcommand::Add(args) => run_add(args, mode).await,
+        HostsSubcommand::Revoke(args) => run_revoke(&args, mode),
+        HostsSubcommand::List(args) => run_list(&args, mode),
+    }
 }
 
 /// Resolves the `known_hosts` path the verb should target — `--known-hosts`

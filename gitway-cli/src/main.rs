@@ -112,6 +112,36 @@ pub(crate) fn emit_json_line(line: &str) {
     println!("{line}");
 }
 
+// ── ssh_config provenance for the diag line (NFR-24, M12.8) ──────────────────
+
+/// Returns the deduplicated list of `ssh_config(5)` source files that
+/// `gitway` would consult for this invocation, used by the
+/// `config_source=` field on the failure diag line.
+///
+/// - When `--no-config` is set, the list is empty.
+/// - Otherwise, [`anvil_ssh::ssh_config::SshConfigPaths::default_paths`]
+///   is consulted and each candidate path that exists on disk is
+///   included.  Missing files are filtered out so the diag line only
+///   reports paths that actually contributed (or could have).
+fn compute_config_sources(cli: &Cli) -> Vec<std::path::PathBuf> {
+    if cli.no_config {
+        return Vec::new();
+    }
+    let paths = anvil_ssh::ssh_config::SshConfigPaths::default_paths();
+    let mut out: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(p) = paths.user {
+        if p.exists() {
+            out.push(p);
+        }
+    }
+    if let Some(p) = paths.system {
+        if p.exists() {
+            out.push(p);
+        }
+    }
+    out
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -141,6 +171,13 @@ async fn main() {
     // detection — the exec path has a piped stdout that carries binary data.
     let error_mode = detect_output_mode(&cli, false);
     let invocation = std::env::args().collect::<Vec<_>>().join(" ");
+
+    // Capture the ssh_config(5) source files BEFORE moving `cli` into
+    // `run()`, so that on failure the diag-line `config_source=` field
+    // (NFR-24, M12.8) can attribute the failure back to the consulted
+    // file(s).  Empty when `--no-config` is set or no candidate file
+    // exists on disk.
+    let config_sources = compute_config_sources(&cli);
 
     let exit_code = match run(cli).await {
         Ok(code) => code,
@@ -172,9 +209,13 @@ async fn main() {
                     // Single-line diagnostic — turns silent exit-128 failures
                     // that git reports when `core.sshCommand` fails into one
                     // grep-able record with PID + argv + exit code + reason.
+                    // The `config_source=` field (NFR-24) lists the
+                    // ssh_config(5) files this invocation actually
+                    // consulted, so triage tooling can attribute the
+                    // failure to the right file.
                     // JSON mode already carries timestamp + command in the
                     // structured blob above, so this is human-mode-only.
-                    anvil_ssh::diagnostic::emit_for(e);
+                    anvil_ssh::diagnostic::emit_for_with_config_sources(e, &config_sources);
                 }
             }
             e.exit_code()

@@ -1,0 +1,124 @@
+# cargo-deny configuration for Gitway (M20.4)
+#
+# Enforces:
+# - Licenses are GPL-3.0-compatible (the project ships under
+#   GPL-3.0-or-later; runtime deps must be permissive enough to
+#   bundle).
+# - No security advisories (RUSTSEC-*) on any reachable crate.
+# - Reasonable bounds on duplicate-version count (the russh +
+#   ssh-key crypto stacks unavoidably introduce some duplicates).
+# - Source allowlist: crates.io only.
+#
+# Run locally:
+#     cargo deny check
+#
+# Run individual sections:
+#     cargo deny check licenses
+#     cargo deny check advisories
+#     cargo deny check bans
+#     cargo deny check sources
+
+[graph]
+# Targets we ship to.  Restricting the dependency graph to these
+# targets gates out platform-specific crates that pull in
+# incompatible licenses on platforms we never build.
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+]
+all-features = false
+
+[output]
+feature-depth = 1
+
+# ── Licenses ─────────────────────────────────────────────────────────────────
+
+[licenses]
+version = 2
+# GPL-3.0-or-later allows linking against permissive licenses but
+# not against more restrictive ones.  The list below is the union
+# of every license that appears in the dependency tree as of v1.0;
+# additions trigger a discussion before merge.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "OpenSSL",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    # Project itself.
+    "GPL-3.0",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+]
+confidence-threshold = 0.8
+
+# Crates with a non-SPDX-resolvable license that we've reviewed
+# manually.  Additions go through review.
+[[licenses.exceptions]]
+allow = ["MPL-2.0"]
+crate = "webpki-roots"
+
+# ── Bans / duplicate version policy ──────────────────────────────────────────
+
+[bans]
+# `warn` rather than `deny` for duplicates because the russh +
+# ssh-key crypto stacks unavoidably bring in older transitive
+# versions of `digest`, `block-buffer`, `crypto-common`, etc.
+# Enforcing zero duplicates would require pinning the entire
+# tree.
+multiple-versions = "warn"
+wildcards = "deny"
+# Highlight crates that are known to be slow / deprecated /
+# unmaintained when they appear in the tree.
+deny = [
+    # Permanently unmaintained; we don't depend on it but flag if
+    # something pulls it in transitively.
+    { name = "openssl", reason = "we use aws-lc-rs for crypto" },
+    # Avoid serde_yaml (unmaintained as of 2024); use serde-yaml-ng
+    # if YAML becomes necessary.
+    { name = "serde_yaml", reason = "unmaintained upstream" },
+]
+# Allow specific duplicates explicitly when reviewing the warn
+# output is more noise than signal.
+skip = []
+# Skip the entire dependency tree of these crates from the
+# duplicate scan (proc-macros frequently bring older versions).
+skip-tree = []
+
+# ── Advisories ───────────────────────────────────────────────────────────────
+
+[advisories]
+version = 2
+# Database refresh: `cargo deny fetch` updates the local copy.
+# CI runs `cargo deny check advisories` which will fetch
+# automatically.
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Yanked crates: warn but do not fail.  A yanked transitive
+# pulls our build to a halt before it gets to the advisory
+# check anyway.
+yanked = "warn"
+# Ignored advisories — additions require a comment explaining
+# why the issue does not apply to Gitway.  Use sparingly.
+ignore = []
+
+# ── Sources ──────────────────────────────────────────────────────────────────
+
+[sources]
+# crates.io only — git dependencies are reviewed case-by-case
+# and listed in `allow-git`.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

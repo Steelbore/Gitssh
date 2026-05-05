@@ -112,10 +112,25 @@ fn apply_alg_override(
 }
 
 /// Returns `true` when a known agent or CI environment variable is set.
+///
+/// Detects the full Steelbore SFRS list (M20.2):
+/// - `AI_AGENT=1` — generic agent flag
+/// - `AGENT=1` — short alias
+/// - `CI=true` — generic CI signal (case-insensitive)
+/// - `CLAUDECODE=1` — Claude Code harness
+/// - `CURSOR_AGENT=1` — Cursor's agent mode
+/// - `GEMINI_CLI=1` — Google Gemini CLI
+///
+/// When any of these are set, machine-readable JSON output mode is
+/// selected automatically unless the caller explicitly passed
+/// `--no-json` / `--format=human`.
 fn is_agent_or_ci_env() -> bool {
     std::env::var_os("AI_AGENT").is_some_and(|v| v == "1")
         || std::env::var_os("AGENT").is_some_and(|v| v == "1")
         || std::env::var("CI").is_ok_and(|v| v.eq_ignore_ascii_case("true"))
+        || std::env::var_os("CLAUDECODE").is_some_and(|v| v == "1")
+        || std::env::var_os("CURSOR_AGENT").is_some_and(|v| v == "1")
+        || std::env::var_os("GEMINI_CLI").is_some_and(|v| v == "1")
 }
 
 // ── Tracing subscriber init (FR-65, FR-67, FR-68, FR-69) ────────────────────
@@ -290,6 +305,41 @@ pub(crate) fn now_iso8601() -> String {
 
 // ── JSON emission helpers ─────────────────────────────────────────────────────
 
+/// The frozen schema version for every JSON envelope Gitway emits (M20.2).
+///
+/// Pinned at `"1.0.0"` for the Gitway 1.0 release.  The contract:
+/// every `--json` envelope (and every always-JSON surface like `gitway
+/// schema` / `gitway describe`) carries this exact string under
+/// `metadata.schema_version`.  Downstream tooling — agents,
+/// MCP-style discovery layers, CI parsers — can pin against it.
+///
+/// Bump policy:
+/// - Patch bumps (`1.0.x`) are reserved for additive, non-breaking
+///   field additions.  Existing keys never change shape or type.
+/// - Minor bumps (`1.x.0`) signal additive structural changes.
+/// - Major bumps (`x.0.0`) signal breaking changes; never released
+///   without coordinating with downstream consumers.
+///
+/// See `docs/json-schema.md` for the full bump policy.
+pub(crate) const JSON_SCHEMA_VERSION: &str = "1.0.0";
+
+/// Builds the standard JSON envelope `metadata` block (M20.2).
+///
+/// Every `--json` and always-JSON command emits an envelope of the
+/// shape `{ metadata: { tool, schema_version, version, command,
+/// timestamp }, data: ... }`.  Centralizing the metadata block
+/// behind this helper guarantees `schema_version` is always present
+/// and identical across surfaces.
+pub(crate) fn metadata_block(command: &str) -> serde_json::Value {
+    serde_json::json!({
+        "tool": "gitway",
+        "schema_version": JSON_SCHEMA_VERSION,
+        "version": env!("CARGO_PKG_VERSION"),
+        "command": command,
+        "timestamp": now_iso8601(),
+    })
+}
+
 /// Emits a structured JSON value to stdout as a single line + newline.
 ///
 /// All Gitway commands that produce JSON output go through this function so
@@ -369,13 +419,12 @@ async fn main() {
             match error_mode {
                 OutputMode::Json => {
                     let json = serde_json::json!({
+                        "metadata": metadata_block(&invocation),
                         "error": {
                             "code": e.error_code(),
                             "exit_code": e.exit_code(),
                             "message": e.to_string(),
                             "hint": e.hint(),
-                            "timestamp": now_iso8601(),
-                            "command": invocation,
                         }
                     });
                     eprintln!("{json}");
@@ -782,12 +831,7 @@ async fn run_test(
         );
 
         let json = serde_json::json!({
-            "metadata": {
-                "tool": "gitway",
-                "version": env!("CARGO_PKG_VERSION"),
-                "command": format!("gitway --test --host {}", config.host),
-                "timestamp": now_iso8601(),
-            },
+            "metadata": metadata_block(&format!("gitway --test --host {}", config.host)),
             "data": {
                 "host": config.host,
                 "port": config.port,
@@ -859,12 +903,7 @@ fn run_install(mode: OutputMode) -> Result<u32, AnvilError> {
         match mode {
             OutputMode::Json => {
                 let json = serde_json::json!({
-                    "metadata": {
-                        "tool": "gitway",
-                        "version": env!("CARGO_PKG_VERSION"),
-                        "command": "gitway --install",
-                        "timestamp": now_iso8601(),
-                    },
+                    "metadata": metadata_block("gitway --install"),
                     "data": {
                         "configured": true,
                         "config_key": "core.sshCommand",
@@ -900,6 +939,7 @@ fn run_schema() -> u32 {
         "$id": "https://github.com/steelbore/gitway/schema/v1",
         "title": "gitway",
         "description": "Pure-Rust SSH toolkit for Git: transport, keys, signing, agent",
+        "schema_version": JSON_SCHEMA_VERSION,
         "version": env!("CARGO_PKG_VERSION"),
         "commands": [
             {
@@ -972,6 +1012,19 @@ fn run_schema() -> u32 {
                 "supports_json": true,
                 "idempotent": true,
                 "subcommands": ["show"]
+            },
+            {
+                "name": "gitway hosts <sub>",
+                "description": "Manage the user known_hosts file (M19, FR-85..FR-87)",
+                "supports_json": true,
+                "idempotent": false,
+                "subcommands": ["add", "revoke", "list"]
+            },
+            {
+                "name": "gitway list-algorithms",
+                "description": "Catalogue of supported algorithms (M17, FR-79)",
+                "supports_json": true,
+                "idempotent": true,
             }
         ],
         "binaries": [
@@ -992,7 +1045,9 @@ fn run_schema() -> u32 {
             "--json": { "type": "boolean", "description": "Emit structured JSON output" },
             "--format": { "type": "string", "enum": ["json"], "description": "Output format" },
             "--no-color": { "type": "boolean", "description": "Disable colored output" },
-            "--verbose": { "type": "boolean", "description": "Enable debug logging to stderr" },
+            "--verbose": { "type": "integer", "description": "Verbosity counter (-v / -vv / -vvv); FR-65..FR-69" },
+            "--debug-format": { "type": "string", "enum": ["human", "json"], "description": "Debug log format on stderr (FR-68)" },
+            "--debug-categories": { "type": "string", "description": "Comma-separated debug categories: kex, auth, channel, config, retry, russh, anvil_ssh::* (FR-69)" },
             "--identity": { "type": "string", "description": "Path to SSH private key" },
             "--cert": { "type": "string", "description": "Path to OpenSSH certificate" },
             "--user": { "type": "string", "default": "git", "description": "Remote SSH username (e.g. `aur` for AUR; default `git`)" },
@@ -1001,6 +1056,13 @@ fn run_schema() -> u32 {
             "--no-config": { "type": "boolean", "description": "Do not read any ssh_config(5) files" },
             "--proxy-command": { "type": "string", "description": "ProxyCommand template (overrides ssh_config; pass `none` to disable)" },
             "--jump-host": { "type": "array", "items": { "type": "string" }, "description": "ProxyJump bastion(s); repeatable; OpenSSH `-J`. Pass `none` to disable" },
+            "--connect-timeout": { "type": "integer", "minimum": 1, "description": "Per-attempt TCP connect deadline in seconds (FR-80)" },
+            "--attempts": { "type": "integer", "minimum": 1, "description": "Total connection attempts including the first (FR-80); 1 disables retry" },
+            "--max-retry-window": { "type": "integer", "minimum": 1, "description": "Hard ceiling on total retry wall-clock time in seconds (FR-81)" },
+            "--kex": { "type": "string", "description": "Override KEX algorithm preference (+/-/^/replace; FR-77)" },
+            "--ciphers": { "type": "string", "description": "Override cipher preference; see `gitway list-algorithms`" },
+            "--macs": { "type": "string", "description": "Override MAC preference" },
+            "--host-key-algorithms": { "type": "string", "description": "Override host-key algorithm preference" },
         },
         "exit_codes": {
             "0": "Success",
@@ -1008,6 +1070,7 @@ fn run_schema() -> u32 {
             "2": "Usage error (bad arguments or configuration)",
             "3": "Not found (no identity key, unknown host)",
             "4": "Permission denied (authentication failure, host key mismatch)",
+            "78": "Refusal to act non-interactively without --yes (gitway hosts add)",
         }
     });
     println!("{schema}");
@@ -1020,6 +1083,7 @@ fn run_schema() -> u32 {
 fn run_describe() -> u32 {
     let manifest = serde_json::json!({
         "tool": "gitway",
+        "schema_version": JSON_SCHEMA_VERSION,
         "version": env!("CARGO_PKG_VERSION"),
         "description": "Pure-Rust SSH toolkit for Git: transport, keys, signing, agent",
         "commands": [
@@ -1067,7 +1131,7 @@ fn run_describe() -> u32 {
             },
             {
                 "name": "gitway agent",
-                "description": "Client operations against any SSH agent (Unix-only in v0.5)",
+                "description": "Client operations against any SSH agent (Unix-only)",
                 "supports_json": true,
                 "idempotent": false,
             },
@@ -1076,18 +1140,33 @@ fn run_describe() -> u32 {
                 "description": "Inspect resolved ssh_config(5) (Gitway's `ssh -G`)",
                 "supports_json": true,
                 "idempotent": true,
+            },
+            {
+                "name": "gitway hosts",
+                "description": "Manage user known_hosts file (M19, FR-85..FR-87)",
+                "supports_json": true,
+                "idempotent": false,
+            },
+            {
+                "name": "gitway list-algorithms",
+                "description": "Catalogue of supported algorithms (M17, FR-79)",
+                "supports_json": true,
+                "idempotent": true,
             }
         ],
         "companion_binaries": [
             "gitway-keygen",
             "gitway-add"
         ],
-        "global_flags": ["--json", "--format", "--verbose", "--no-color",
-                         "--insecure-skip-host-check", "--no-config",
+        "global_flags": ["--json", "--format", "--verbose", "--debug-format", "--debug-categories",
+                         "--no-color", "--insecure-skip-host-check", "--no-config",
                          "--identity", "--cert", "--user", "--port",
-                         "--proxy-command", "--jump-host"],
+                         "--proxy-command", "--jump-host",
+                         "--connect-timeout", "--attempts", "--max-retry-window",
+                         "--kex", "--ciphers", "--macs", "--host-key-algorithms"],
         "output_formats": ["json"],
         "mcp_available": false,
+        "agent_env_vars": ["AI_AGENT", "AGENT", "CI", "CLAUDECODE", "CURSOR_AGENT", "GEMINI_CLI"],
         "providers": ["github.com", "gitlab.com", "codeberg.org"],
     });
     println!("{manifest}");

@@ -23,7 +23,7 @@ use crate::cli::{
     ChangePassphraseArgs, ExtractPublicArgs, FingerprintArgs, GenerateArgs, HashKind, KeyAlg,
     KeygenSubcommand, VerifyArgs,
 };
-use crate::{emit_json, emit_json_line, now_iso8601, prompt_passphrase, OutputMode};
+use crate::{emit_json, emit_json_line, metadata_block, prompt_passphrase, OutputMode};
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -58,12 +58,7 @@ fn run_generate(args: GenerateArgs, mode: OutputMode) -> Result<u32, AnvilError>
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway keygen generate",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway keygen generate"),
                 "data": {
                     "private_key_path": args.file,
                     "public_key_path": pub_path,
@@ -114,12 +109,7 @@ fn run_fingerprint(args: &FingerprintArgs, mode: OutputMode) -> Result<u32, Anvi
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway keygen fingerprint",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway keygen fingerprint"),
                 "data": {
                     "path": args.file,
                     "fingerprint": fp,
@@ -146,12 +136,7 @@ fn run_extract_public(args: &ExtractPublicArgs, mode: OutputMode) -> Result<u32,
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway keygen extract-public",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway keygen extract-public"),
                 "data": {
                     "private_key_path": args.file,
                     "public_key_path": out,
@@ -195,12 +180,7 @@ fn run_change_passphrase(args: ChangePassphraseArgs, mode: OutputMode) -> Result
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway keygen change-passphrase",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway keygen change-passphrase"),
                 "data": {
                     "path": args.file,
                     "encrypted": new.is_some(),
@@ -232,12 +212,7 @@ fn run_verify(args: &VerifyArgs, mode: OutputMode) -> Result<u32, AnvilError> {
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway keygen verify",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway keygen verify"),
                 "data": {
                     "verified": true,
                     "signer": verified.principal,

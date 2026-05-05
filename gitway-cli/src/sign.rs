@@ -19,7 +19,7 @@ use anvil_ssh::AnvilError;
 
 use crate::cli::{HashKind, SignArgs};
 use crate::keygen::{hashkind_to_sshkey, open_input, write_output};
-use crate::{now_iso8601, prompt_passphrase, OutputMode};
+use crate::{metadata_block, prompt_passphrase, OutputMode};
 
 /// Runs `gitway sign` / `gitway keygen sign`.
 pub fn run(args: &SignArgs, mode: OutputMode) -> Result<u32, AnvilError> {
@@ -42,12 +42,7 @@ pub fn run(args: &SignArgs, mode: OutputMode) -> Result<u32, AnvilError> {
             // Emit the structured record to stderr so it cannot contaminate
             // a tool reading stdout for the signature bytes.
             let record = serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway sign",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway sign"),
                 "data": {
                     "signer_fingerprint": keygen::fingerprint(key.public_key(), HashAlg::Sha256),
                     "namespace": args.namespace,

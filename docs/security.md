@@ -107,6 +107,44 @@ something it `Include`s) before Gitway runs.
 who runs Gitway with a hostile `~/.ssh/config` will fetch via
 whatever transport that file specifies.
 
+## Known residual risks (accepted for v1.0)
+
+### RUSTSEC-2023-0071 — Marvin Attack on the `rsa` crate
+
+**What it is.**  The RustCrypto `rsa` crate's modular-exponentiation
+path leaks timing information that can, in principle, be used to
+recover an RSA private key by an attacker who can observe many
+signature timings precisely enough.  Both `rsa = "0.9"` (transitive
+via `ssh-key`) and `rsa = "0.10.0-rc"` (transitive via russh) are
+affected.  No patched release exists yet upstream
+([RustCrypto/RSA #626](https://github.com/RustCrypto/RSA/issues/626)).
+
+**Why we ship anyway.**
+
+1. **Use site is local.**  Gitway's transport crypto goes through
+   russh's `aws-lc-rs` backend, which is constant-time.  The `rsa`
+   crate is only on the keygen and SSHSIG-signing paths, both of
+   which are local operations.
+2. **SSH auth signatures are infrequent.**  At most one or two
+   per session, far below the sample count Marvin-style timing
+   recovery needs.
+3. **Network jitter dominates.**  The discriminator the attack
+   needs (sub-microsecond differences in modular operations) is
+   well below SSH connection RTT noise.
+4. **The default Gitway key type is Ed25519**, which is not
+   affected by this advisory.
+
+**What this means for users with RSA keys.**  If you authenticate
+to a Git host with an RSA private key that you generate or sign
+with via `gitway keygen` / `gitway sign`, and you regularly do so
+on a machine where an attacker can observe sub-microsecond timing
+of those local operations, prefer Ed25519 until upstream ships a
+patched release.
+
+**Tracking.**  Recorded in `deny.toml` `advisories.ignore`; reviewed
+at every release.  Will be lifted as soon as RustCrypto/RSA cuts a
+patched version.
+
 ## Defenses that intentionally do not exist (yet)
 
 | Gap | Why it's not in v1.0 | Tracked at |

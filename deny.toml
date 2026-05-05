@@ -56,18 +56,17 @@ allow = [
     "Unicode-3.0",
     "Unicode-DFS-2016",
     "Zlib",
+    # MPL-2.0 (Mozilla Public License 2.0) is a weak per-file
+    # copyleft that is GPL-3.0-compatible (FSF confirmed).
+    # Source: https://www.mozilla.org/en-US/MPL/2.0/FAQ/#mpl-and-gpl
+    # Used by `option-ext` (transitive via `dirs`) and `webpki-roots`.
+    "MPL-2.0",
     # Project itself.
     "GPL-3.0",
     "GPL-3.0-only",
     "GPL-3.0-or-later",
 ]
 confidence-threshold = 0.8
-
-# Crates with a non-SPDX-resolvable license that we've reviewed
-# manually.  Additions go through review.
-[[licenses.exceptions]]
-allow = ["MPL-2.0"]
-crate = "webpki-roots"
 
 # ── Bans / duplicate version policy ──────────────────────────────────────────
 
@@ -109,9 +108,50 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # pulls our build to a halt before it gets to the advisory
 # check anyway.
 yanked = "warn"
-# Ignored advisories — additions require a comment explaining
-# why the issue does not apply to Gitway.  Use sparingly.
-ignore = []
+# Ignored advisories — every entry MUST carry an explanation
+# justifying why the issue does not apply to Gitway's threat
+# model.  Reviewed at every release.
+ignore = [
+    # ── RUSTSEC-2023-0071 — Marvin Attack on the `rsa` crate ─────────
+    # Affected: `rsa` 0.9.x and 0.10.0-rc.x (we transitively pull both
+    # via `ssh-key` -> `rsa = "0.9"` and via russh's
+    # `internal-russh-forked-ssh-key` -> `rsa = "0.10.0-rc.12"`).
+    #
+    # Status: NO PATCH AVAILABLE.  RustCrypto/RSA upstream is
+    # working on a fully constant-time implementation; we'll bump
+    # as soon as a fixed release lands.  See
+    # https://github.com/RustCrypto/RSA/issues/626.
+    #
+    # Why we accept the risk for v1.0:
+    #
+    # 1. **Use site is keygen + SSHSIG signing — local operations.**
+    #    Gitway's transport crypto runs through `russh` with the
+    #    `aws-lc-rs` backend, which is constant-time.  The `rsa`
+    #    crate's timing leak only matters for RSA private-key
+    #    operations the user performs on their own machine via
+    #    `gitway keygen` and `gitway sign`.
+    #
+    # 2. **SSH auth uses RSA private-key signatures rarely.**
+    #    The default key for v1.0 personas is Ed25519 (which
+    #    is not affected by this advisory).  RSA-SHA2 signatures
+    #    are issued at most once per session — far below the
+    #    sample count typically required for a Marvin-style
+    #    timing-side-channel recovery.
+    #
+    # 3. **Network jitter dominates at SSH timescales.**  The
+    #    Marvin Attack's discriminator (sub-microsecond timing
+    #    differences in the modular operations) is well below
+    #    the noise floor of SSH connection RTT (1–100 ms).
+    #
+    # 4. **No safe upgrade exists.**  Pinning to an older `rsa`
+    #    version does not help — every published version is
+    #    vulnerable.
+    #
+    # We will revisit this ignore when RustCrypto/RSA ships a
+    # fixed release; see CHANGELOG and `docs/security.md` for the
+    # operator-facing description of the residual risk.
+    { id = "RUSTSEC-2023-0071", reason = "rsa crate Marvin Attack — no patch available; only used for local keygen + SSHSIG signing; SSH auth uses Ed25519 by default; network jitter dominates at SSH timescales. See deny.toml comments and docs/security.md." },
+]
 
 # ── Sources ──────────────────────────────────────────────────────────────────
 

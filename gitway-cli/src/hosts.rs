@@ -28,7 +28,7 @@ use anvil_ssh::ssh_config::StrictHostKeyChecking;
 use anvil_ssh::{AnvilConfig, AnvilError, AnvilSession};
 
 use crate::cli::{HostsAddArgs, HostsListArgs, HostsRevokeArgs, HostsSubcommand};
-use crate::{emit_json, now_iso8601, OutputMode};
+use crate::{emit_json, metadata_block, OutputMode};
 
 // ── Exit codes (SFRS Rule 2 + M19 plan) ─────────────────────────────────────
 
@@ -180,12 +180,7 @@ async fn run_add(args: HostsAddArgs, mode: OutputMode) -> Result<u32, AnvilError
 
     if mode == OutputMode::Json {
         let envelope = serde_json::json!({
-            "metadata": {
-                "tool": "gitway",
-                "version": env!("CARGO_PKG_VERSION"),
-                "command": "gitway hosts add",
-                "timestamp": now_iso8601(),
-            },
+            "metadata": metadata_block("gitway hosts add"),
             "data": {
                 "host": args.host,
                 "fingerprint": fingerprint,
@@ -245,12 +240,7 @@ fn run_revoke(args: &HostsRevokeArgs, mode: OutputMode) -> Result<u32, AnvilErro
 
     if mode == OutputMode::Json {
         let envelope = serde_json::json!({
-            "metadata": {
-                "tool": "gitway",
-                "version": env!("CARGO_PKG_VERSION"),
-                "command": "gitway hosts revoke",
-                "timestamp": now_iso8601(),
-            },
+            "metadata": metadata_block("gitway hosts revoke"),
             "data": {
                 "host_pattern": host_pattern,
                 "fingerprint": fingerprint,
@@ -350,12 +340,7 @@ fn run_list(args: &HostsListArgs, mode: OutputMode) -> Result<u32, AnvilError> {
             })
             .collect();
         let envelope = serde_json::json!({
-            "metadata": {
-                "tool": "gitway",
-                "version": env!("CARGO_PKG_VERSION"),
-                "command": "gitway hosts list",
-                "timestamp": now_iso8601(),
-            },
+            "metadata": metadata_block("gitway hosts list"),
             "data": {
                 "known_hosts_path": path.display().to_string(),
                 "embedded": embedded_json,

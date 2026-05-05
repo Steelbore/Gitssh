@@ -33,7 +33,7 @@ use crate::cli::{
     AgentAddArgs, AgentListArgs, AgentLockArgs, AgentRemoveArgs, AgentStartArgs, AgentStopArgs,
     AgentSubcommand, HashKind,
 };
-use crate::{emit_json, emit_json_line, now_iso8601, prompt_passphrase, OutputMode};
+use crate::{emit_json, emit_json_line, metadata_block, prompt_passphrase, OutputMode};
 
 use anvil_ssh::agent::daemon::{self, AgentDaemonConfig};
 
@@ -85,12 +85,7 @@ fn run_add(args: &AgentAddArgs, mode: OutputMode) -> Result<u32, AnvilError> {
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway agent add",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway agent add"),
                 "data": {
                     "added": added,
                     "lifetime_seconds": args.lifetime,
@@ -148,12 +143,7 @@ fn run_list(args: &AgentListArgs, mode: OutputMode) -> Result<u32, AnvilError> {
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway agent list",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway agent list"),
                 "data": {
                     "identity_count": ids.len(),
                     "identities": ids.iter().map(|id| serde_json::json!({
@@ -214,12 +204,7 @@ fn run_remove(args: &AgentRemoveArgs, mode: OutputMode) -> Result<u32, AnvilErro
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway agent remove",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway agent remove"),
                 "data": {
                     "removed": removed,
                     "all": args.all,
@@ -269,12 +254,7 @@ fn run_lock(args: &AgentLockArgs, mode: OutputMode, lock: bool) -> Result<u32, A
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": format!("gitway agent {verb}"),
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block(&format!("gitway agent {verb}")),
                 "data": {
                     "state": verb,
                 }
@@ -533,12 +513,7 @@ fn run_stop(args: &AgentStopArgs, mode: OutputMode) -> Result<u32, AnvilError> {
     match mode {
         OutputMode::Json => {
             emit_json(&serde_json::json!({
-                "metadata": {
-                    "tool": "gitway",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "command": "gitway agent stop",
-                    "timestamp": now_iso8601(),
-                },
+                "metadata": metadata_block("gitway agent stop"),
                 "data": { "signalled_pid": pid }
             }));
         }

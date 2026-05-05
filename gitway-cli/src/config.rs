@@ -17,7 +17,7 @@ use anvil_ssh::ssh_config::{resolve, AlgList, ResolvedSshConfig, SshConfigPaths}
 use anvil_ssh::{AnvilError, StrictHostKeyChecking};
 
 use crate::cli::{ConfigShowArgs, ConfigSubcommand};
-use crate::{emit_json, now_iso8601, OutputMode};
+use crate::{emit_json, OutputMode};
 
 /// Dispatches one `gitway config <sub>` invocation.
 pub fn run(sub: ConfigSubcommand, mode: OutputMode) -> Result<u32, AnvilError> {
@@ -234,12 +234,7 @@ fn emit_json_show(args: &ConfigShowArgs, resolved: &ResolvedSshConfig) {
     });
 
     emit_json(&serde_json::json!({
-        "metadata": {
-            "tool": "gitway",
-            "version": env!("CARGO_PKG_VERSION"),
-            "command": "gitway config show",
-            "timestamp": now_iso8601(),
-        },
+        "metadata": crate::metadata_block("gitway config show"),
         "data": data,
     }));
 }

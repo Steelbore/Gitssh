@@ -14,7 +14,7 @@
 use anvil_ssh::algorithms::{all_supported, AlgEntry};
 use anvil_ssh::AnvilError;
 
-use crate::{emit_json, now_iso8601, OutputMode};
+use crate::{emit_json, metadata_block, OutputMode};
 
 /// Runs `gitway list-algorithms` in the requested output mode.
 ///
@@ -84,12 +84,7 @@ fn format_entry(entry: &AlgEntry) -> String {
 
 fn emit_json_catalogue(cat: &anvil_ssh::algorithms::Catalogue) {
     let envelope = serde_json::json!({
-        "metadata": {
-            "tool": "gitway",
-            "version": env!("CARGO_PKG_VERSION"),
-            "command": "gitway list-algorithms",
-            "timestamp": now_iso8601(),
-        },
+        "metadata": metadata_block("gitway list-algorithms"),
         "data": {
             "kex":      cat.kex.iter().map(entry_to_json).collect::<Vec<_>>(),
             "cipher":   cat.cipher.iter().map(entry_to_json).collect::<Vec<_>>(),

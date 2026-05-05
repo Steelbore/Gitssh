@@ -249,3 +249,22 @@ jobs:
 
       - name: cargo check (MSRV)
         run: cargo check --all-targets
+
+  # ── Supply-chain gate (M20.4): cargo-deny ──────────────────────────────────
+  #
+  # Enforces the license allowlist, the security-advisory database,
+  # and the source allowlist defined in `deny.toml` at the repo root.
+  # See `deny.toml` for the policy spec.
+  deny:
+    name: cargo-deny (licenses + advisories + bans + sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          # Run all four checks; failures fail the job.
+          command: check
